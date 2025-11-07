@@ -1,0 +1,2111 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Consumi Manager — minimal</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    html,body { 
+      background:#f5f7fa; 
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; 
+      height:100%; 
+      font-size: 0.9rem; /* Diminuisco il carattere del font */
+    }
+    .app { 
+      max-width:1600px; /* Allargo la maschera principale */
+      margin:28px auto; 
+      background:white; 
+      border-radius:8px; 
+      box-shadow:0 6px 18px rgba(10,10,10,0.06); 
+      overflow:hidden; 
+    }
+    header.app-header { display:flex; align-items:center; justify-content:space-between; padding:18px 24px; background:#0f1724; color:white; }
+    header.app-header h1 { font-weight:600; font-size:1.1rem; margin:0; }
+    .content-area { padding:20px; }
+    .card-min { border-radius:8px; border:1px solid #e6eef6; padding:12px; background:#fff; }
+    .small-muted { font-size:0.82rem; color:#6b7280; }
+    .table th, .table td { vertical-align: middle; }
+    .table td:last-child { white-space: nowrap; } /* Impedisce di andare a capo nella colonna azioni */
+    .chart-wrap { height:360px; }
+    .pill { background:#eef2ff; padding:6px 10px; border-radius:999px; font-size:0.85rem; color:#3730a3; }
+    .inline-gap { display:flex; gap:8px; align-items:center; }
+    .pdf-list li { cursor: move; user-select: none; }
+    #allegati-lista li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+
+    /* Stili per le celle dei contatori */
+    .counter-cell {
+      border-radius: 4px;
+      padding: 4px 8px;
+      margin: -4px 0; /* Ajust per allineamento */
+      display: inline-block; /* Per applicare colore di sfondo */
+      line-height: 1.2;
+    }
+  </style>
+<style id="ui-upgrade">
+  :root{
+    --app-bg: #f6f8fb;
+    --card-bg: #ffffff;
+    --accent: #2563eb;
+    --accent-weak: #e8efff;
+    --muted: #6b7280;
+    --radius: 12px;
+    --shadow: 0 10px 24px rgba(0,0,0,.06);
+  }
+  html, body { background: var(--app-bg); }
+  .app {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .app-header {
+    display:flex; align-items:center; justify-content:space-between;
+    background: linear-gradient(180deg, #fff, #f9fbff);
+    border-bottom: 1px solid #e5e7eb;
+    padding: 14px 18px !important;
+    position: sticky; top: 0; z-index: 9;
+  }
+  .app-header h1 { font-weight: 700; letter-spacing: .2px; margin: 0; }
+  .inline-gap > .button { margin-left: 6px; }
+  .config-tab, .main-cards, .tables-wrap { padding: 12px 14px; }
+  .card-like {
+    background: var(--card-bg);
+    border: 1px solid #eef1f6;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .small-muted { color: var(--muted); font-size: .9em; }
+  /* Table polish */
+  table.table { border-radius: 8px; overflow: hidden; }
+  table.table thead { background: #f2f6ff; }
+  table.table tbody tr:hover { background: #f9fbff; }
+  /* Tabs polish in modal */
+  #modal-config .tabs ul { border-bottom-color:#e5e7eb; }
+  #modal-config .tabs.is-boxed li.is-active a { background:#fff; box-shadow: var(--shadow); }
+  /* Backup list */
+  #backup-list li { border-bottom: 1px dashed #e5e7eb; }
+  #backup-list li:last-child { border-bottom: none; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>Consumi Manager</h1>
+      <div class="inline-gap">
+        <button class="button is-light is-small" id="btn-export-xlsx">Esporta .xlsx</button>
+        <button class="button is-light is-small" id="btn-import-xlsx">Importa .xlsx</button>
+        <button class="button is-primary is-small" id="btn-open-config">⚙️ Configurazioni</button>
+      
+        <button class="button is-light is-small" id="btn-export-json">Esporta .json</button>
+        <button class="button is-light is-small" id="btn-import-json">Importa .json</button>
+</div>
+    </header>
+    <input type="file" id="file-import-json" accept=".json" style="display:none;">
+
+    <div class="content-area">
+      <div class="tabs is-toggle is-fullwidth">
+        <ul id="mainTabs">
+          <li class="is-active" data-tab="energia"><a>Energia</a></li>
+          <li data-tab="gas"><a>Gas</a></li>
+          <li data-tab="acqua"><a>Acqua</a></li>
+          <li data-tab="statistiche"><a>Statistiche</a></li>
+        </ul>
+      </div>
+
+      <div id="panels">
+        <section id="energia" class="panel">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo — <span class="pill">Energia</span></h4>
+                <div class="field">
+                  <label>Fornitura</label>
+                  <div class="control">
+                    <div class="select is-fullwidth"><select id="fornitura-select-energia"></select></div>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-energia"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori">⚙️</button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-energia" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+
+                <div class="field">
+                  <label>Consumo (kWh)</label>
+                  <div class="control"><input id="consumo-energia" type="number" class="input" step="0.01" placeholder="0.00"></div>
+                </div>
+
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-energia" type="number" class="input" step="0.01" placeholder="0.00"></div>
+                </div>
+
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('energia')">Aggiungi consumo</button></div></div>
+              </div>
+
+              <div style="height:16px"></div>
+
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-energia" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-energia" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <!-- Filtro Contatore per Energia -->
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-energia" onchange="applicaFiltro('energia')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <!-- Fine Filtro Contatore per Energia -->
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('energia')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('energia')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-energia" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-energia"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="gas" class="panel" style="display:none;">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo — <span class="pill">Gas</span></h4>
+
+                <div class="field">
+                  <label>Fornitura</label>
+                  <div class="control"><div class="select is-fullwidth"><select id="fornitura-select-gas"></select></div></div>
+                </div>
+
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-gas"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori-2">⚙️</button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-gas" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+
+                <div class="field">
+                  <label>Unità originale</label>
+                  <div class="control"><div class="select"><select id="tipo-gas"><option value="kWh">kWh</option><option value="m3">m³</option><option value="litri">litri (GPL)</option></select></div></div>
+                </div>
+
+                <div class="field">
+                  <label>Consumo (in unità selezionata)</label>
+                  <div class="control"><input id="consumo-gas" type="number" class="input" step="0.01"></div>
+                </div>
+
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-gas" type="number" class="input" step="0.01"></div>
+                </div>
+
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('gas')">Aggiungi consumo</button></div></div>
+              </div>
+
+              <div style="height:16px"></div>
+
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-gas" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-gas" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <!-- Filtro Contatore per Gas -->
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-gas" onchange="applicaFiltro('gas')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <!-- Fine Filtro Contatore per Gas -->
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('gas')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('gas')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-gas" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo orig.</th><th>Consumo (kWh)</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-gas"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="acqua" class="panel" style="display:none;">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo — <span class="pill">Acqua</span></h4>
+
+                <div class="field">
+                  <label>Fornitura</label>
+                  <div class="control"><div class="select is-fullwidth"><select id="fornitura-select-acqua"></select></div></div>
+                </div>
+
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-acqua"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori-3">⚙️</button>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-acqua" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+
+                <div class="field">
+                  <label>Consumo (m³)</label>
+                  <div class="control"><input id="consumo-acqua" type="number" class="input" step="0.01"></div>
+                </div>
+
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-acqua" type="number" class="input" step="0.01"></div>
+                </div>
+
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('acqua')">Aggiungi consumo</button></div></div>
+              </div>
+
+              <div style="height:16px"></div>
+
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-acqua" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-acqua" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <!-- Filtro Contatore per Acqua -->
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-acqua" onchange="applicaFiltro('acqua')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <!-- Fine Filtro Contatore per Acqua -->
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('acqua')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('acqua')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-acqua" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-acqua"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="statistiche" class="panel" style="display:none;">
+          <div class="card-min">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 class="title is-5">Statistiche consumi (mensili)</h4>
+              <div class="inline-gap">
+                <label class="checkbox"><input id="toggle-energia" type="checkbox" checked> Energia</label>
+                <label class="checkbox"><input id="toggle-gas" type="checkbox" checked> Gas</label>
+                <label class="checkbox"><input id="toggle-acqua" type="checkbox" checked> Acqua</label>
+              </div>
+            </div>
+
+            <!-- NUOVO BLOCCO FILTRO CONTATORE PER STATISTICHE -->
+            <div style="margin-top:12px;" class="field">
+              <label class="label small-muted">Filtra per Contatore:</label>
+              <div id="filtro-contatori-stat-checkboxes" style="margin-top: 8px;">
+                <!-- I checkbox verranno popolati dinamicamente da JavaScript -->
+              </div>
+              <p class="help">Seleziona i contatori specifici da mostrare. I contatori disponibili dipendono dalle forniture attive sopra.</p>
+            </div>
+            <!-- FINE NUOVO BLOCCO FILTRO CONTATORE PER STATISTICHE -->
+
+            <div style="margin-top:12px;" class="inline-gap">
+              <label class="small-muted">Periodo:</label>
+              <input id="filtro-inizio-stat" type="text" class="input is-small" style="width:130px;" placeholder="Inizio">
+              <input id="filtro-fine-stat" type="text" class="input is-small" style="width:130px;" placeholder="Fine">
+              <button class="button is-light is-small" onclick="applicaFiltroStat()">Applica</button>
+              <button class="button is-light is-small" onclick="resetFiltroStat()">Reset</button>
+            </div>
+
+            <div style="margin-top:12px;"><div class="chart-wrap"><canvas id="chart-consumi"></canvas></div></div>
+
+            <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;">
+              <button class="button is-light is-small" onclick="esportaGraficoXLSX()">Esporta grafico (.xlsx)</button>
+              <button class="button is-light is-small" onclick="esportaGraficoCSV()">Esporta grafico (.csv)</button>
+              <button class="button is-light is-small" id="btn-export-pdf">Esporta PDF</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-config" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Configurazioni</p>
+        <button class="delete" aria-label="close" id="close-config"></button>
+      </header>
+      <section class="modal-card-body">
+        <div class="tabs">
+          <ul>
+            <li class="is-active" data-config-tab="forniture"><a>Forniture</a></li>
+            <li data-config-tab="contatori"><a>Contatori</a></li>
+            <li data-config-tab="sharepoint"><a>SharePoint</a></li>
+            <li data-config-tab="data"><a>Dati</a></li> <!-- NUOVA TAB -->
+          </ul>
+        </div>
+
+        <div id="config-forniture" class="config-tab active-config">
+          <div style="display:flex; gap:12px; align-items:flex-end;">
+            <div style="flex:1"><label class="label">Nome fornitura</label><input id="nuova-fornitura-nome" class="input" placeholder="es. Energia elettrica o codice energia"></div>
+            <div style="width:220px;"><label class="label">Codice (chiave)</label><input id="nuova-fornitura-codice" class="input" placeholder="es. energia, gas, acqua"></div>
+            <div><button class="button is-primary" id="btn-aggiungi-fornitura">Aggiungi</button></div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <table class="table is-fullwidth"><thead><tr><th>Codice</th><th>Nome</th><th>Attiva</th><th>Azioni</th></tr></thead><tbody id="lista-forniture"></tbody></table>
+            <p class="small-muted">Nota: non è possibile eliminare una fornitura se ci sono contatori associati. Disabilitala se vuoi nasconderla.</p>
+          </div>
+        </div>
+
+        <div id="config-contatori" class="config-tab" style="display:none;">
+          <div style="display:grid; grid-template-columns:1fr 260px; gap:12px; align-items:start;">
+            <div>
+              <label class="label">Nome contatore</label><input id="contatore-nome" class="input" placeholder="es. Casa, Caldaia">
+              <label class="label" style="margin-top:8px">Codice unico</label><input id="contatore-codice" class="input" placeholder="es. EN001">
+
+              <label class="label" style="margin-top:8px">Fornitura</label>
+              <div class="control"><div class="select is-fullwidth"><select id="contatore-fornitura"></select></div></div>
+              <label class="label" style="margin-top:8px">Ubicazione</label><input id="contatore-ubicazione" class="input" placeholder="es. Piano terra">
+              <label class="label" style="margin-top:8px">Stato</label>
+              <div class="control"><div class="select is-fullwidth"><select id="contatore-stato"><option value="attivo">Attivo</option><option value="inattivo">Inattivo</option></select></div></div>
+
+              <div style="margin-top:10px;" class="inline-gap">
+                <button class="button is-primary" id="btn-salva-contatore">Salva contatore</button>
+                <button class="button is-light" id="btn-annu-modifica-contatore" style="display:none">Annulla</button>
+              </div>
+            </div>
+
+            <div>
+              <h4 class="title is-6">Elenco contatori</h4>
+              <div style="max-height:360px; overflow:auto; border-left:1px solid #eef2f7; padding-left:12px;">
+                <div id="lista-contatori-config"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="config-sharepoint" class="config-tab" style="display:none;">
+          <h3 class="title is-6">Percorso SharePoint</h3>
+          <div class="field">
+            <label class="label">URL della cartella SharePoint</label>
+            <div class="control">
+              <input id="sharepoint-path" class="input" type="text" placeholder="https://tuo-tenant.sharepoint.com/.../CartellaConsumi">
+            </div>
+            <p class="help">Questo percorso verrà visualizzato come un link nella schermata di allegato file per un facile accesso.</p>
+          </div>
+          <div class="field">
+            <div class="control">
+              <button class="button is-primary" id="btn-salva-sharepoint">Salva Percorso</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- NUOVA SEZIONE DATI -->
+        <div id="config-data" class="config-tab" style="display:none;">
+  <h3 class="title is-6">Backup & Ripristino (JSON)</h3>
+  <div class="field is-grouped is-grouped-multiline">
+    <div class="control"><button class="button is-primary is-small" id="btn-backup-now">Esegui backup ora</button></div>
+    <div class="control"><button class="button is-light is-small" id="btn-backup-download-last">Scarica ultimo backup</button></div>
+    <div class="control"><button class="button is-light is-small" id="btn-import-json-dup">Importa .json</button></div>
+  </div>
+  <p class="small-muted">Il backup JSON include forniture, contatori, consumi, allegati (se presenti) e il percorso SharePoint.</p>
+  <hr>
+
+  <h3 class="title is-6">Auto-backup locale</h3>
+  <div class="columns is-multiline">
+    <div class="column is-3">
+      <label class="checkbox">
+        <input type="checkbox" id="auto-backup-enabled"> Abilita auto-backup
+      </label>
+    </div>
+    <div class="column is-3">
+      <label class="label small-muted">Frequenza (minuti)</label>
+      <input id="auto-backup-every" type="number" class="input" min="1" step="1" value="60">
+    </div>
+    <div class="column is-3">
+      <label class="label small-muted">Conserva ultimi (n) backup</label>
+      <input id="auto-backup-keep" type="number" class="input" min="1" step="1" value="10">
+    </div>
+    <div class="column is-3" style="display:flex; align-items:flex-end;">
+      <button class="button is-link is-light" id="btn-save-autobackup">Salva impostazioni</button>
+    </div>
+  </div>
+  <p class="small-muted">L’auto-backup salva snapshot in locale (browser). Puoi scaricarli o ripristinarli da qui sotto.</p>
+
+  <h3 class="title is-6" style="margin-top:1rem;">Archivio backup locali</h3>
+  <ul id="backup-list"></ul>
+
+  <hr>
+  <h3 class="title is-6">Elimina tutti i consumi</h3>
+  <p class="small-muted" style="margin-bottom: 1rem;">
+    Elimina in modo permanente tutti i dati di consumo (Energia, Gas, Acqua). Azione irreversibile. Contatori e forniture restano.
+  </p>
+  <div class="field">
+    <div class="control">
+      <button class="button is-danger" id="btn-elimina-tutti-consumi">Elimina TUTTI i consumi</button>
+    </div>
+  </div>
+</div>
+          </div>
+        </div>
+        <!-- FINE NUOVA SEZIONE DATI -->
+
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button" id="close-config-2">Chiudi</button>
+      </footer>
+    </div>
+  </div>
+
+  <input type="file" id="file-import" accept=".xlsx,.xls,.csv" style="display:none;">
+
+  <div id="modal-pdf" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Esporta PDF</p>
+        <button class="delete" aria-label="close" id="close-pdf-modal"></button>
+      </header>
+      <section class="modal-card-body">
+        <h3 class="title is-6">Sezioni da esportare</h3>
+        <ul id="pdf-section-list" class="pdf-list">
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="chart" checked> Grafico</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="energia" checked> Energia</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="gas" checked> Gas</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="acqua" checked> Acqua</label></li>
+        </ul>
+        <p class="small-muted">Trascina gli elementi per riordinare le sezioni.</p>
+        <div style="margin-top: 1 rem;">
+          <h3 class="title is-6">Impostazioni</h3>
+          <div class="field">
+            <label class="label">Orientamento</label>
+            <div class="control">
+              <label class="radio"><input type="radio" name="pdf-orient" value="p" checked> Verticale</label>
+              <label class="radio"><input type="radio" name="pdf-orient" value="l"> Orizzontale</label>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Formato</label>
+            <div class="control">
+              <div class="select"><select id="pdf-format">
+                <option value="a4">A4</option>
+                <option value="a3">A3</option>
+                <option value="letter">Letter</option>
+                <option value="legal">Legal</option>
+              </select></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot" style="justify-content: flex-end;">
+        <button class="button is-primary" id="btn-genera-pdf">Genera PDF</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="modal-allegati" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Gestione Allegati</p>
+        <button class="delete" aria-label="close" id="close-allegati-modal"></button>
+      </header>
+      <section class="modal-card-body">
+        <div id="sharepoint-link-container" style="display: none; margin-bottom: 1.5rem; padding: 12px; background-color: #eef2ff; border-radius: 6px; word-break: break-all;">
+            <p class="small-muted" style="margin-bottom: 4px;"><strong>Percorso SharePoint suggerito:</strong></p>
+            <a id="sharepoint-link" href="#" target="_blank"></a>
+        </div>
+        <h3 class="title is-6">Allegati esistenti</h3>
+        <ul id="allegati-lista">
+          </ul>
+        <p id="no-allegati" class="small-muted" style="display: none;">Nessun allegato presente.</p>
+        <hr>
+        <h3 class="title is-6">Aggiungi nuovo allegato</h3>
+        <div class="field">
+          <div class="control">
+            <div class="file has-name is-fullwidth">
+              <label class="file-label">
+                <input class="file-input" type="file" id="file-allegato-input">
+                <span class="file-cta">
+                  <span class="file-icon">📁</span>
+                  <span class="file-label">Scegli un file…</span>
+                </span>
+                <span class="file-name" id="file-allegato-nome">Nessun file selezionato</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <p class="small-muted">Nota: i file sono salvati localmente nel browser. Si consiglia di non superare 1-2 MB per file per evitare problemi di performance e di spazio.</p>
+      </section>
+      <footer class="modal-card-foot" style="justify-content: flex-end;">
+        <button class="button" id="close-allegati-modal-2">Chiudi</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+
+  <script>
+  /* ===========================
+     Dati e inizializzazione
+     =========================== */
+
+  const STORAGE = {
+    forniture: 'cm_forniture_v1',
+    contatori: 'cm_contatori_v1',
+    consumi: 'cm_consumi_v1',
+    sharepointPath: 'cm_sharepoint_path_v1'
+  };
+
+  let forniture = {};
+  let contatori = [];
+  let consumi = { energia: [], gas: [], acqua: [] };
+  let contatoreInModifica = null;
+  let allegatoCorrente = { tipo: null, id: null };
+
+
+  /* Colori per il grafico, una palette più ampia per i contatori */
+  // Nuova palette di colori più gradevole e professionale (ispirata a ColorBrewer2 Set3 + altri)
+  const CHART_COLORS_PALETTE = [
+    '#8dd3c7', '#81D4FA', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd',
+    '#ccebc5', '#ffed6f', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00',
+    '#cab2d6', '#6a3d9a', '#ffff99', '#b15928'
+  ];
+  let chartColorMap = new Map(); // Mappa ID contatore a colore
+
+  // Variabile per mantenere lo stato selezionato dei checkbox del filtro statistiche
+  let selectedStatCounters = new Set();
+
+
+  /* Carica dati */
+  function caricaDati() {
+    const f = localStorage.getItem(STORAGE.forniture);
+    const c = localStorage.getItem(STORAGE.contatori);
+    const cs = localStorage.getItem(STORAGE.consumi);
+
+    if (f) forniture = JSON.parse(f);
+    else {
+      forniture = { energia: { nome: 'Energia Elettrica', attiva: true }, gas: { nome: 'Gas', attiva: true }, acqua: { nome: 'Acqua', attiva: true } };
+      localStorage.setItem(STORAGE.forniture, JSON.stringify(forniture));
+    }
+
+    contatori = c ? JSON.parse(c) : [
+      { id: 1, nome: 'Casa principale', codice: 'EN001', fornitura: 'energia', ubicazione: 'Abitazione', stato: 'attivo' },
+      { id: 2, nome: 'Riscaldamento', codice: 'GS001', fornitura: 'gas', ubicazione: 'Caldaia', stato: 'attivo' },
+      { id: 3, nome: 'Contatore acqua', codice: 'AQ001', fornitura: 'acqua', ubicazione: 'Generale', stato: 'attivo' }
+    ];
+    if (!c) localStorage.setItem(STORAGE.contatori, JSON.stringify(contatori));
+
+    consumi = cs ? JSON.parse(cs) : { energia: [], gas: [], acqua: [] };
+    // Aggiunge la proprietà `allegati` se non esiste per retrocompatibilità
+    Object.keys(consumi).forEach(tipo => {
+        consumi[tipo].forEach(cons => {
+            if (!cons.allegati) {
+                cons.allegati = [];
+            }
+        });
+    });
+    if (!cs) localStorage.setItem(STORAGE.consumi, JSON.stringify(consumi));
+  }
+
+  function salvaForniture() { localStorage.setItem(STORAGE.forniture, JSON.stringify(forniture)); }
+  function salvaContatori()  { localStorage.setItem(STORAGE.contatori, JSON.stringify(contatori)); }
+  function salvaConsumi() {
+    try {
+        localStorage.setItem(STORAGE.consumi, JSON.stringify(consumi));
+    } catch (e) {
+        if (e.name === 'QuotaExceededError') {
+            alert('Errore: Spazio di archiviazione locale esaurito. Non è possibile salvare nuovi dati o allegati. Prova a eliminare alcuni file allegati di grandi dimensioni.');
+        } else {
+            alert('Si è verificato un errore imprevisto durante il salvataggio dei dati.');
+        }
+    }
+  }
+
+  /* ===========================
+     Inizializzazione UI
+     =========================== */
+  document.addEventListener('DOMContentLoaded', () => {
+    caricaDati();
+    inizializzaTabs();
+    popolaFornitureSelects();
+    popolaContatoriSelects();
+    popolaConfigLists();
+    popolaFiltriContatoriSchede();
+    inizializzaPickers();
+    caricaTabelleTutti();
+    
+    // AGGIUNTO: Inizializza i contatori checkbox delle statistiche prima del grafico
+    popolaStatContatoriCheckboxes();
+    inizializzaGrafico(); // Questa funzione chiama aggiornaGrafico()
+    attachEventHandlers();
+  });
+
+  /* Tabs */
+  function inizializzaTabs() {
+    document.querySelectorAll('#mainTabs li').forEach(li => {
+      li.addEventListener('click', () => {
+        document.querySelectorAll('#mainTabs li').forEach(x => x.classList.remove('is-active'));
+        li.classList.add('is-active');
+        const tab = li.getAttribute('data-tab');
+        document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+        const el = document.getElementById(tab);
+        if (el) el.style.display = 'block';
+        if (tab === 'statistiche') {
+            // AGGIORNATO: Ricarica i checkbox e il grafico quando si seleziona la tab statistiche
+            popolaStatContatoriCheckboxes();
+            aggiornaGrafico();
+        }
+      });
+    });
+
+    document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+    document.getElementById('energia').style.display = 'block';
+  }
+
+  /* Pickers mese-anno */
+  function inizializzaPickers() {
+    const opts = {
+      plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "F Y", theme: "light" })],
+      allowInput: true
+    };
+    flatpickr("#mese-energia", opts);
+    flatpickr("#mese-gas", opts);
+    flatpickr("#mese-acqua", opts);
+    flatpickr("#filtro-inizio-energia", opts);
+    flatpickr("#filtro-fine-energia", opts);
+    flatpickr("#filtro-inizio-gas", opts);
+    flatpickr("#filtro-fine-gas", opts);
+    flatpickr("#filtro-inizio-acqua", opts);
+    flatpickr("#filtro-fine-acqua", opts);
+    flatpickr("#filtro-inizio-stat", opts);
+    flatpickr("#filtro-fine-stat", opts);
+  }
+
+  /* Forniture / Contatori UI */
+  function popolaFornitureSelects() {
+    const selE = document.getElementById('fornitura-select-energia');
+    const selG = document.getElementById('fornitura-select-gas');
+    const selA = document.getElementById('fornitura-select-acqua');
+    [selE, selG, selA].forEach(sel => {
+      sel.innerHTML = '';
+      const defaultOption = document.createElement('option');
+      defaultOption.value = '';
+      defaultOption.textContent = 'Seleziona fornitura...';
+      sel.appendChild(defaultOption);
+      Object.keys(forniture).forEach(cod => {
+        if (!forniture[cod].attiva) return;
+        const opt = document.createElement('option'); opt.value = cod; opt.textContent = forniture[cod].nome || cod; sel.appendChild(opt);
+      });
+    });
+
+    const contF = document.getElementById('contatore-fornitura');
+    if (contF) {
+      contF.innerHTML = '';
+      Object.keys(forniture).forEach(cod => {
+        const opt = document.createElement('option'); opt.value = cod; opt.textContent = `${cod} — ${forniture[cod].nome || cod}${forniture[cod].attiva ? '' : ' (disabilitata)'}`; contF.appendChild(opt);
+      });
+    }
+  }
+
+  document.getElementById('btn-aggiungi-fornitura')?.addEventListener('click', () => {
+    const nome = document.getElementById('nuova-fornitura-nome').value.trim();
+    const codice = document.getElementById('nuova-fornitura-codice').value.trim().toLowerCase();
+    if (!nome || !codice) { alert('Inserisci nome e codice per la fornitura'); return; }
+    if (forniture[codice]) { alert('Codice fornitura già presente'); return; }
+    forniture[codice] = { nome, attiva: true };
+    salvaForniture(); popolaFornitureSelects(); popolaConfigLists();
+    document.getElementById('nuova-fornitura-nome').value = '';
+    document.getElementById('nuova-fornitura-codice').value = '';
+  });
+
+  // Utility per convertire hex in RGB
+  function hexToRgb(hex) {
+    let r = 0, g = 0, b = 0;
+    hex = hex.startsWith('#') ? hex.slice(1) : hex;
+    if (hex.length === 3) { 
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+    } else if (hex.length === 6) { 
+        r = parseInt(hex.substring(0, 2), 16);
+        g = parseInt(hex.substring(2, 4), 16);
+        b = parseInt(hex.substring(4, 6), 16);
+    }
+    return { r, g, b };
+  }
+
+  // Utility per determinare il colore del testo a contrasto
+  function getContrastTextColor(bgColor) {
+    let r, g, b;
+    if (bgColor.startsWith('#')) {
+        const rgb = hexToRgb(bgColor);
+        r = rgb.r; g = rgb.g; b = rgb.b;
+    } else if (bgColor.startsWith('rgb')) {
+        const match = bgColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+            r = parseInt(match[1], 10);
+            g = parseInt(match[2], 10);
+            b = parseInt(match[3], 10);
+        } else { 
+            return 'black';
+        }
+    } else { 
+        return 'black';
+    }
+
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance > 0.5 ? '#363636' : 'white'; // Colori più scuri per il testo nero, bianco per colori chiari
+  }
+
+  function popolaConfigLists() {
+    const tbody = document.getElementById('lista-forniture'); if (tbody) {
+      tbody.innerHTML = '';
+      Object.keys(forniture).forEach(cod => {
+        const f = forniture[cod];
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td><strong>${cod}</strong></td><td>${f.nome}</td><td><label class="checkbox"><input type="checkbox" data-codice="${cod}" ${f.attiva ? 'checked' : ''} onchange="toggleFornitura(this)"></label></td><td><button class="button is-small is-light" onclick="modificaFornitura('${cod}')">Modifica</button> <button class="button is-small is-danger" onclick="eliminaFornitura('${cod}')">Elimina</button></td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    const lcont = document.getElementById('lista-contatori-config'); if (lcont) {
+      lcont.innerHTML = '';
+      contatori.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'box';
+        div.style.padding = '8px';
+        div.style.marginBottom = '8px';
+        div.style.border = 'none';
+
+        const bgColor = getCounterColor(c.id);
+        const textColor = getContrastTextColor(bgColor);
+
+        div.style.backgroundColor = bgColor;
+        div.style.color = textColor;
+
+        div.innerHTML = `
+          <strong>${c.nome}</strong> <span style="color: ${textColor}; opacity: 0.8;">(${c.codice})</span>
+          <div style="color: ${textColor}; opacity: 0.8;">Fornitura: ${forniture[c.fornitura]?.nome || c.fornitura} — ${c.ubicazione || '-'}</div>
+          <div style="margin-top:6px;">
+            <button class="button is-small" onclick="modificaContatoreConfig(${c.id})" style="color: ${textColor}; background-color: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3);">Modifica</button>
+            <button class="button is-small" onclick="eliminaContatoreConfig(${c.id})" style="color: ${textColor}; background-color: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.3);">Elimina</button>
+          </div>
+        `;
+        lcont.appendChild(div);
+      });
+    }
+  }
+
+  function toggleFornitura(el) {
+    const codice = el.dataset.codice;
+    forniture[codice].attiva = el.checked;
+    salvaForniture(); popolaFornitureSelects(); popolaConfigLists();
+  }
+  function modificaFornitura(cod) {
+    const nuovo = prompt('Nuovo nome per ' + cod, forniture[cod].nome);
+    if (nuovo !== null) { forniture[cod].nome = nuovo.trim() || forniture[cod].nome; salvaForniture(); popolaFornitureSelects(); popolaConfigLists(); }
+  }
+  function eliminaFornitura(cod) {
+    const associati = contatori.filter(c => c.fornitura === cod);
+    if (associati.length > 0) { alert('Impossibile eliminare: esistono contatori associati. Disabilita la fornitura oppure sposta i contatori.'); return; }
+    if (confirm('Eliminare la fornitura ' + cod + ' ?')) { delete forniture[cod]; salvaForniture(); popolaFornitureSelects(); popolaConfigLists(); }
+  }
+
+  /* Contatori CRUD */
+  document.getElementById('btn-salva-contatore')?.addEventListener('click', () => {
+    const nome = document.getElementById('contatore-nome').value.trim();
+    const codice = document.getElementById('contatore-codice').value.trim();
+    const fornitura = document.getElementById('contatore-fornitura').value;
+    const ubicazione = document.getElementById('contatore-ubicazione').value.trim();
+    const stato = document.getElementById('contatore-stato').value;
+    if (!nome || !codice || !fornitura) { alert('Compila i campi obbligatori'); return; }
+    const existe = contatori.find(c => c.codice === codice && (contatoreInModifica === null || c.id !== contatoreInModifica));
+    if (existe) { alert('Codice contatore già esistente'); return; }
+    if (contatoreInModifica) {
+      const idx = contatori.findIndex(c => c.id === contatoreInModifica);
+      contatori[idx] = { id: contatoreInModifica, nome, codice, fornitura, ubicazione, stato };
+      contatoreInModifica = null;
+      document.getElementById('btn-annu-modifica-contatore').style.display = 'none';
+    } else {
+      const nuovoId = Math.max(0, ...contatori.map(c => c.id)) + 1;
+      contatori.push({ id: nuovoId, nome, codice, fornitura, ubicazione, stato });
+    }
+    salvaContatori(); 
+    popolaContatoriSelects(); 
+    popolaConfigLists(); 
+    popolaStatContatoriCheckboxes(); // AGGIUNTO: Aggiorna i checkbox delle statistiche
+    resetFormContatore();
+  });
+  document.getElementById('btn-annu-modifica-contatore')?.addEventListener('click', () => { contatoreInModifica = null; resetFormContatore(); });
+
+  function modificaContatoreConfig(id) {
+    const c = contatori.find(x => x.id === id); if (!c) return;
+    contatoreInModifica = id;
+    document.getElementById('contatore-nome').value = c.nome;
+    document.getElementById('contatore-codice').value = c.codice;
+    document.getElementById('contatore-fornitura').value = c.fornitura;
+    document.getElementById('contatore-ubicazione').value = c.ubicazione || '';
+    document.getElementById('contatore-stato').value = c.stato || 'attivo';
+    document.getElementById('btn-annu-modifica-contatore').style.display = '';
+  }
+  function eliminaContatoreConfig(id) {
+    if (!confirm('Eliminare contatore? I consumi resteranno in archivio ma il contatore non sarà più selezionabile.')) return;
+    contatori = contatori.filter(c => c.id !== id); 
+    salvaContatori(); 
+    popolaContatoriSelects(); 
+    popolaConfigLists();
+    popolaStatContatoriCheckboxes(); // AGGIUNTO: Aggiorna i checkbox delle statistiche
+  }
+  function resetFormContatore() {
+    document.getElementById('contatore-nome').value = '';
+    document.getElementById('contatore-codice').value = '';
+    document.getElementById('contatore-ubicazione').value = '';
+    document.getElementById('contatore-stato').value = 'attivo';
+    contatoreInModifica = null;
+    document.getElementById('btn-annu-modifica-contatore').style.display = 'none';
+  }
+
+  /* Popola select contatori (inserimento) */
+  function popolaContatoriSelects() {
+    const byType = { energia: [], gas: [], acqua: [] };
+    contatori.forEach(c => { if (!byType[c.fornitura]) byType[c.fornitura] = []; byType[c.fornitura].push(c); });
+    const setOptions = (selectId, arr) => {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Seleziona contatore...</option>';
+      arr.filter(c => c.stato === 'attivo').forEach(c => {
+        const opt = document.createElement('option'); opt.value = c.id; opt.textContent = `${c.nome} (${c.codice})`; sel.appendChild(opt);
+      });
+    };
+    setOptions('contatore-select-energia', byType.energia || []);
+    setOptions('contatore-select-gas',    byType.gas || []);
+    setOptions('contatore-select-acqua',  byType.acqua || []);
+
+    popolaFiltriContatoriSchede();
+    popolaStatContatoriCheckboxes(); // AGGIUNTO: Per assicurarsi che i contatori delle statistiche si aggiornino
+  }
+
+  function popolaFiltriContatoriSchede() {
+    ['energia', 'gas', 'acqua'].forEach(tipo => {
+      const select = document.getElementById(`filtro-contatore-${tipo}`);
+      if (!select) return;
+
+      const selectedValue = select.value;
+
+      select.innerHTML = '<option value="">Tutti i contatori</option>'; // Opzione di default
+
+      contatori.filter(c => c.fornitura === tipo && c.stato === 'attivo').forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.nome} (${c.codice})`;
+        select.appendChild(opt);
+      });
+
+      if (selectedValue && Array.from(select.options).some(opt => opt.value === selectedValue)) {
+        select.value = selectedValue;
+      }
+    });
+  }
+
+  // FUNZIONE AGGIORNATA per popolare i checkbox dei contatori nelle statistiche
+  function popolaStatContatoriCheckboxes() {
+    const mainContainer = document.getElementById('filtro-contatori-stat-checkboxes');
+    if (!mainContainer) return;
+    
+    mainContainer.innerHTML = ''; // Pulisci i checkbox esistenti
+
+    const visibleTypes = {
+      energia: document.getElementById('toggle-energia').checked,
+      gas: document.getElementById('toggle-gas').checked,
+      acqua: document.getElementById('toggle-acqua').checked,
+    };
+
+    // Filtra i contatori in base ai toggle Energia/Gas/Acqua
+    const availableCounters = contatori.filter(c => 
+      c.stato === 'attivo' && visibleTypes[c.fornitura]
+    );
+
+    // Raggruppa i contatori per tipo di fornitura
+    const groupedCounters = availableCounters.reduce((acc, counter) => {
+      if (!acc[counter.fornitura]) {
+        acc[counter.fornitura] = [];
+      }
+      acc[counter.fornitura].push(counter);
+      return acc;
+    }, {});
+
+    const sortedForneitureKeys = Object.keys(groupedCounters).sort((a,b) => {
+        const order = ['energia', 'gas', 'acqua'];
+        return order.indexOf(a) - order.indexOf(b);
+    });
+
+    sortedForneitureKeys.forEach(fornituraType => {
+        const typeName = forniture[fornituraType]?.nome || fornituraType.charAt(0).toUpperCase() + fornituraType.slice(1);
+        const countersOfType = groupedCounters[fornituraType].sort((a, b) => a.nome.localeCompare(b.nome));
+
+        if (countersOfType.length > 0) {
+            // Crea un div per l'intera sezione di una fornitura (titolo + checkbox)
+            const fornituraSectionDiv = document.createElement('div');
+            fornituraSectionDiv.style.marginBottom = '15px'; // Spazio tra i gruppi
+            fornituraSectionDiv.style.borderBottom = '1px solid #eee'; // Linea separatrice
+            fornituraSectionDiv.style.paddingBottom = '10px';
+
+
+            // Titolo del gruppo di fornitura
+            const groupTitle = document.createElement('p');
+            groupTitle.className = 'title is-7';
+            groupTitle.style.marginBottom = '8px'; // Spazio sotto il titolo
+            groupTitle.innerHTML = `<strong>${typeName}:</strong>`;
+            fornituraSectionDiv.appendChild(groupTitle);
+
+            // Contenitore per i checkbox di questo gruppo (per Bulma is-grouped)
+            const checkboxesGroup = document.createElement('div');
+            checkboxesGroup.className = 'field is-grouped is-grouped-multiline';
+
+
+            // Checkbox "Seleziona tutti" per il gruppo
+            const selectAllWrapper = document.createElement('div');
+            selectAllWrapper.className = 'control';
+            const selectAllLabel = document.createElement('label');
+            selectAllLabel.className = 'checkbox';
+            const selectAllInput = document.createElement('input');
+            selectAllInput.type = 'checkbox';
+            selectAllInput.dataset.fornitura = fornituraType;
+            selectAllInput.onchange = (e) => {
+                const isChecked = e.target.checked;
+                countersOfType.forEach(c => {
+                    const counterCheckbox = document.getElementById(`stat-counter-${c.id}`);
+                    if (counterCheckbox) {
+                        counterCheckbox.checked = isChecked;
+                        if (isChecked) {
+                            selectedStatCounters.add(c.id);
+                        } else {
+                            selectedStatCounters.delete(c.id);
+                        }
+                    }
+                });
+                aggiornaGrafico();
+            };
+            selectAllLabel.appendChild(selectAllInput);
+            selectAllLabel.appendChild(document.createTextNode(' Seleziona tutti'));
+            selectAllWrapper.appendChild(selectAllLabel);
+            checkboxesGroup.appendChild(selectAllWrapper); // Appendi al gruppo di checkbox
+
+
+            countersOfType.forEach(c => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'control'; // Bulma control for aligning checkboxes
+                const label = document.createElement('label');
+                label.className = 'checkbox';
+                const input = document.createElement('input');
+                input.type = 'checkbox';
+                input.id = `stat-counter-${c.id}`;
+                input.value = c.id;
+                input.checked = selectedStatCounters.has(c.id); // Mantieni lo stato selezionato
+                input.onchange = (e) => {
+                    if (e.target.checked) {
+                        selectedStatCounters.add(parseInt(e.target.value, 10));
+                    } else {
+                        selectedStatCounters.delete(parseInt(e.target.value, 10));
+                    }
+                    aggiornaGrafico();
+                    // Aggiorna lo stato del "Seleziona tutti"
+                    const allChecked = countersOfType.every(counter => selectedStatCounters.has(counter.id));
+                    selectAllInput.checked = allChecked;
+                };
+
+                const pillColor = getCounterColor(c.id);
+                const pillTextColor = getContrastTextColor(pillColor);
+
+                const pillSpan = document.createElement('span');
+                pillSpan.className = 'pill';
+                pillSpan.style.backgroundColor = pillColor;
+                pillSpan.style.color = pillTextColor;
+                pillSpan.style.marginRight = '5px';
+                pillSpan.textContent = `${c.nome} (${c.codice})`;
+
+                label.appendChild(input);
+                label.appendChild(pillSpan);
+                wrapper.appendChild(label);
+                checkboxesGroup.appendChild(wrapper); // Appendi al gruppo di checkbox
+
+                // Inizializza lo stato del "Seleziona tutti"
+                const allChecked = countersOfType.every(counter => selectedStatCounters.has(counter.id));
+                selectAllInput.checked = allChecked;
+            });
+
+            fornituraSectionDiv.appendChild(checkboxesGroup); // Appendi il gruppo di checkbox alla sezione fornitura
+            mainContainer.appendChild(fornituraSectionDiv); // Appendi la sezione fornitura al container principale
+        }
+    });
+
+    // Se non ci sono contatori disponibili, assicurati che `selectedStatCounters` sia vuoto
+    // e che i contatori precedentemente selezionati (e ora non visibili) vengano rimossi
+    const currentlyAvailableCounterIds = new Set(availableCounters.map(c => c.id));
+    selectedStatCounters = new Set(Array.from(selectedStatCounters).filter(id => currentlyAvailableCounterIds.has(id)));
+
+    if (availableCounters.length === 0) {
+        selectedStatCounters.clear();
+    }
+  }
+
+
+  /* Aggiungi / elimina consumi */
+  function aggiungiConsumo(tipo) {
+    const contatoreId = parseInt(document.getElementById('contatore-select-' + tipo).value || 0);
+    const mese = document.getElementById('mese-' + tipo).value;
+    const importo = parseFloat(document.getElementById('importo-' + tipo).value || 0);
+    if (!contatoreId) { alert('Seleziona un contatore'); return; }
+    if (!mese) { alert('Seleziona mese e anno'); return; }
+    const baseConsumo = { 
+        id: Date.now() + Math.random(), 
+        contatoreId, 
+        mese, 
+        importo, 
+        allegati: [] 
+    };
+
+    if (tipo === 'gas') {
+      const tipoGas = document.getElementById('tipo-gas').value;
+      const val = parseFloat(document.getElementById('consumo-gas').value || 0);
+      if (isNaN(val) || val <= 0) { alert('Inserisci consumo'); return; }
+      let consumoKwh = val;
+      let consumoOriginale = null;
+      if (tipoGas === 'm3') {
+        consumoOriginale = val;
+        consumoKwh = val * 10.69;
+      } else if (tipoGas === 'litri') {
+        consumoOriginale = val;
+        consumoKwh = val * 6.6;
+      }
+      const nuovo = { ...baseConsumo, consumo: parseFloat(consumoKwh.toFixed(2)), consumoOriginale: consumoOriginale, tipoOrigine: tipoGas };
+      consumi.gas.push(nuovo);
+    } else {
+      const consumoVal = parseFloat(document.getElementById('consumo-' + tipo).value || 0);
+      if (isNaN(consumoVal) || consumoVal <= 0) { alert('Inserisci consumo'); return; }
+      consumi[tipo].push({ ...baseConsumo, consumo: consumoVal });
+    }
+    salvaConsumi(); 
+    caricaTabelleTutti(); 
+    aggiornaGrafico();
+    popolaStatContatoriCheckboxes(); // AGGIUNTO: Aggiorna i checkbox delle statistiche (se un nuovo contatore è stato usato)
+    document.getElementById('contatore-select-' + tipo).value = '';
+    document.getElementById('mese-' + tipo).value = '';
+    if (tipo === 'gas') document.getElementById('consumo-gas').value = '';
+    else document.getElementById('consumo-' + tipo).value = '';
+    document.getElementById('importo-' + tipo).value = '';
+  }
+  function eliminaConsumo(tipo, id) {
+    if (!confirm('Eliminare il consumo? L\'azione è irreversibile.')) return;
+    consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
+    salvaConsumi(); 
+    caricaTabelleTutti(); 
+    aggiornaGrafico();
+    popolaStatContatoriCheckboxes(); // AGGIUNTO: Aggiorna i checkbox delle statistiche (se un contatore è stato rimosso)
+  }
+
+  // NUOVA FUNZIONE PER ELIMINARE TUTTI I CONSUMI
+  function deleteAllConsumi() {
+    if (confirm('Sei sicuro di voler eliminare TUTTI i consumi (Energia, Gas, Acqua)? Questa azione è irreversibile!')) {
+      consumi.energia = [];
+      consumi.gas = [];
+      consumi.acqua = [];
+      salvaConsumi();
+      caricaTabelleTutti();
+      aggiornaGrafico();
+      selectedStatCounters.clear(); // AGGIUNTO: Reset i contatori selezionati per le statistiche
+      popolaStatContatoriCheckboxes(); // AGGIUNTO: Ridisegna i checkbox (ora tutti deselezionati)
+      alert('Tutti i consumi sono stati eliminati con successo.');
+      closeModalConfig();
+    }
+  }
+
+  /* Carica tabelle */
+  function caricaTabelleTutti() { caricaTabella('energia'); caricaTabella('gas'); caricaTabella('acqua'); }
+  function caricaTabella(tipo) {
+    const tbody = document.getElementById('tabella-' + tipo);
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    let rows = consumi[tipo] || [];
+    const start = document.getElementById('filtro-inizio-' + tipo)?.value;
+    const end = document.getElementById('filtro-fine-' + tipo)?.value;
+    if (start || end) {
+      rows = rows.filter(r => {
+        if (start && r.mese < start) return false;
+        if (end && r.mese > end) return false;
+        return true;
+      });
+    }
+
+    const filtroContatoreId = document.getElementById(`filtro-contatore-${tipo}`)?.value;
+    if (filtroContatoreId) {
+      rows = rows.filter(r => String(r.contatoreId) === filtroContatoreId);
+    }
+
+    rows = rows.sort((a,b) => b.mese.localeCompare(a.mese));
+    rows.forEach(r => {
+      const cont = contatori.find(c => c.id === r.contatoreId) || { nome: '—', codice: '—', id: null };
+      const tr = document.createElement('tr');
+      const allegatiCount = r.allegati ? r.allegati.length : 0;
+      const actionsHtml = `
+        <div class="buttons are-small">
+            <button class="button is-light" onclick="openAllegatiModal('${tipo}', ${r.id})">
+                <span>Allega</span>
+                <span class="tag is-dark" style="margin-left: 6px;">${allegatiCount}</span>
+            </button>
+            <button class="button is-danger is-light" onclick="eliminaConsumo('${tipo}', ${r.id})">Elimina</button>
+        </div>`;
+
+      // Applica colore al contatore nella tabella
+      const contatoreColor = cont.id ? getCounterColor(cont.id) : 'transparent';
+      const contatoreTextColor = cont.id ? getContrastTextColor(contatoreColor) : 'currentColor';
+      const contatoreCellContent = `<span class="counter-cell" style="background-color: ${contatoreColor}; color: ${contatoreTextColor};">${cont.nome} (${cont.codice})</span>`;
+
+
+      if (tipo === 'gas') {
+        tr.innerHTML = `<td>${formatMese(r.mese)}</td><td>${contatoreCellContent}</td><td>${(r.consumoOriginale ?? r.consumo).toFixed(2)} ${r.tipoOrigine ?? 'kWh'}</td><td>${(r.consumo).toFixed(2)} kWh</td><td>€${(r.importo||0).toFixed(2)}</td><td>${actionsHtml}</td>`;
+      } else {
+        const unita = tipo === 'energia' ? 'kWh' : 'm³';
+        tr.innerHTML = `<td>${formatMese(r.mese)}</td><td>${contatoreCellContent}</td><td>${(r.consumo).toFixed(2)} ${unita}</td><td>€${(r.importo||0).toFixed(2)}</td><td>${actionsHtml}</td>`;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function formatMese(ym) {
+    if (!ym) return '-';
+    const [y,m] = String(ym).split('-');
+    const date = new Date(y, parseInt(m,10)-1, 1);
+    return date.toLocaleString('it-IT', { month: 'short', year: 'numeric' });
+  }
+
+  /* Filtri */
+  function applicaFiltro(tipo) { caricaTabella(tipo); }
+  function resetFiltro(tipo) {
+    document.getElementById('filtro-inizio-' + tipo).value = '';
+    document.getElementById('filtro-fine-' + tipo).value = '';
+    const filtroContatoreSelect = document.getElementById(`filtro-contatore-${tipo}`);
+    if (filtroContatoreSelect) {
+      filtroContatoreSelect.value = ''; // Seleziona l'opzione "Tutti i contatori" (value="")
+    }
+    caricaTabella(tipo);
+  }
+  function applicaFiltroStat() { 
+    // Prima di aggiornare il grafico, assicurati che i checkbox siano correttamente popolati
+    popolaStatContatoriCheckboxes();
+    aggiornaGrafico(); 
+  }
+  function resetFiltroStat() {
+    document.getElementById('filtro-inizio-stat').value = '';
+    document.getElementById('filtro-fine-stat').value = '';
+    selectedStatCounters.clear(); // NUOVO: Resetta i contatori selezionati
+    popolaStatContatoriCheckboxes(); // Ridisegna i checkbox (ora tutti deselezionati)
+    aggiornaGrafico();
+  }
+
+  /* Modal Handlers */
+  function attachEventHandlers() {
+    document.getElementById('btn-open-config').addEventListener('click', openModalConfig);
+    document.getElementById('close-config').addEventListener('click', closeModalConfig);
+    document.getElementById('close-config-2').addEventListener('click', closeModalConfig);
+    document.querySelectorAll('[data-config-tab]').forEach(li => {
+      li.addEventListener('click', () => {
+        const tabName = li.getAttribute('data-config-tab');
+        document.querySelectorAll('[data-config-tab]').forEach(x => x.parentElement.classList.remove('is-active'));
+        li.parentElement.classList.add('is-active');
+        document.querySelectorAll('.config-tab').forEach(p => p.style.display = 'none');
+        document.getElementById('config-' + tabName).style.display = '';
+      });
+    });
+
+    document.getElementById('btn-open-contatori')?.addEventListener('click', openModalConfigContatori);
+    document.getElementById('btn-open-contatori-2')?.addEventListener('click', openModalConfigContatori);
+    document.getElementById('btn-open-contatori-3')?.addEventListener('click', openModalConfigContatori);
+
+    document.getElementById('btn-export-xlsx').addEventListener('click', esportaDatiXLSX);
+    document.getElementById('btn-import-xlsx').addEventListener('click', () => document.getElementById('file-import').click());
+    document.getElementById('file-import').addEventListener('change', handleImportFile);
+
+    document.getElementById('btn-export-pdf').addEventListener('click', openModalPdf);
+    document.getElementById('close-pdf-modal').addEventListener('click', closeModalPdf);
+    document.getElementById('btn-genera-pdf').addEventListener('click', esportaStatistichePDF);
+
+    // Allegati Modal
+    document.getElementById('close-allegati-modal').addEventListener('click', closeAllegatiModal);
+    document.getElementById('close-allegati-modal-2').addEventListener('click', closeAllegatiModal);
+    document.getElementById('file-allegato-input').addEventListener('change', handleFileSelect);
+    
+    // SharePoint
+    document.getElementById('btn-salva-sharepoint').addEventListener('click', salvaPercorsoSharepoint);
+
+    // AGGIUNTO: Event listener per il pulsante elimina tutti i consumi
+    document.getElementById('btn-elimina-tutti-consumi')?.addEventListener('click', deleteAllConsumi);
+
+    // AGGIORNATO: Modifica gli handler onchange per i toggle di energia/gas/acqua
+    document.getElementById('toggle-energia').addEventListener('change', () => { 
+        popolaStatContatoriCheckboxes(); // Aggiorna i contatori disponibili
+        aggiornaGrafico(); 
+    });
+    document.getElementById('toggle-gas').addEventListener('change', () => { 
+        popolaStatContatoriCheckboxes(); // Aggiorna i contatori disponibili
+        aggiornaGrafico(); 
+    });
+    document.getElementById('toggle-acqua').addEventListener('change', () => { 
+        popolaStatContatoriCheckboxes(); // Aggiorna i contatori disponibili
+        aggiornaGrafico(); 
+    });
+
+    const pdfList = document.getElementById('pdf-section-list');
+    if (pdfList) {
+      let dragSrc = null;
+      pdfList.querySelectorAll('li').forEach(li => {
+        li.addEventListener('dragstart', e => { dragSrc = li; e.dataTransfer.effectAllowed = 'move'; });
+        li.addEventListener('dragover', e => { e.preventDefault(); });
+        li.addEventListener('drop', e => { e.preventDefault(); if (dragSrc && dragSrc !== li) { pdfList.insertBefore(dragSrc, li); } dragSrc = null; });
+      });
+      pdfList.addEventListener('dragover', e => { e.preventDefault(); });
+      pdfList.addEventListener('drop', e => { e.preventDefault(); if (dragSrc) { pdfList.appendChild(dragSrc); dragSrc = null; } });
+    }
+  }
+
+  function openModalConfig() {
+    document.getElementById('modal-config').classList.add('is-active');
+    document.getElementById('sharepoint-path').value = localStorage.getItem(STORAGE.sharepointPath) || '';
+    document.querySelectorAll('.config-tab').forEach(p => p.style.display = 'none');
+    document.getElementById('config-forniture').style.display = ''; // Mostra di default la tab forniture
+    document.querySelectorAll('[data-config-tab]').forEach(x => x.parentElement.classList.remove('is-active'));
+    document.querySelector('[data-config-tab="forniture"]').parentElement.classList.add('is-active');
+    
+    popolaConfigLists();
+    popolaFornitureSelects();
+  }
+  function openModalConfigContatori() {
+    openModalConfig();
+    const tabs = document.querySelectorAll('[data-config-tab]'); tabs.forEach(t => t.parentElement.classList.remove('is-active'));
+    tabs[1].parentElement.classList.add('is-active'); // Seleziona la tab "Contatori" (indice 1)
+    document.getElementById('config-forniture').style.display = 'none';
+    document.getElementById('config-sharepoint').style.display = 'none';
+    document.getElementById('config-data').style.display = 'none'; // Nascondi la nuova tab "Dati"
+    document.getElementById('config-contatori').style.display = '';
+    popolaConfigLists();
+  }
+  function closeModalConfig() { document.getElementById('modal-config').classList.remove('is-active'); resetFormContatore(); }
+
+  /* ===========================
+     Gestione Allegati & SharePoint
+     =========================== */
+  function salvaPercorsoSharepoint() {
+    const path = document.getElementById('sharepoint-path').value.trim();
+    localStorage.setItem(STORAGE.sharepointPath, path);
+    alert('Percorso SharePoint salvato con successo.');
+  }
+     
+  function openAllegatiModal(tipo, id) {
+    allegatoCorrente = { tipo, id };
+    const spContainer = document.getElementById('sharepoint-link-container');
+    const spLink = document.getElementById('sharepoint-link');
+    const savedPath = localStorage.getItem(STORAGE.sharepointPath);
+
+    if (savedPath) {
+      spLink.href = savedPath;
+      spLink.textContent = savedPath;
+      spContainer.style.display = 'block';
+    } else {
+      spContainer.style.display = 'none';
+    }
+    
+    document.getElementById('modal-allegati').classList.add('is-active');
+    popolaListaAllegati(tipo, id);
+  }
+
+  function closeAllegatiModal() {
+    document.getElementById('modal-allegati').classList.remove('is-active');
+    allegatoCorrente = { tipo: null, id: null };
+    document.getElementById('file-allegato-input').value = ''; // Reset input
+    document.getElementById('file-allegato-nome').textContent = 'Nessun file selezionato';
+  }
+
+  function popolaListaAllegati(tipo, id) {
+    const lista = document.getElementById('allegati-lista');
+    const noAllegatiMsg = document.getElementById('no-allegati');
+    lista.innerHTML = '';
+    const record = consumi[tipo].find(c => c.id === id);
+    if (!record || !record.allegati || record.allegati.length === 0) {
+      noAllegatiMsg.style.display = 'block';
+      return;
+    }
+
+    noAllegatiMsg.style.display = 'none';
+    record.allegati.forEach((file, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <a href="${file.data}" target="_blank" download="${file.name}">${file.name}</a>
+            <button class="button is-small is-danger is-light" onclick="eliminaAllegato('${tipo}', ${id}, ${index})">Elimina</button>
+        `;
+        lista.appendChild(li);
+    });
+  }
+
+  function handleFileSelect(event) {
+    const fileInput = event.target;
+    const file = fileInput.files[0];
+    const fileNameEl = document.getElementById('file-allegato-nome');
+    if (!file) {
+      fileNameEl.textContent = 'Nessun file selezionato';
+      return;
+    }
+    fileNameEl.textContent = file.name;
+
+    const { tipo, id } = allegatoCorrente;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const nuovoAllegato = {
+            name: file.name,
+            type: file.type,
+            data: e.target.result
+        };
+        const record = consumi[tipo].find(c => c.id === id);
+        if (record) {
+            record.allegati.push(nuovoAllegato);
+            salvaConsumi();
+            popolaListaAllegati(tipo, id);
+            caricaTabelleTutti();
+        }
+        fileInput.value = '';
+        fileNameEl.textContent = 'Nessun file selezionato';
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function eliminaAllegato(tipo, id, index) {
+    if (!confirm('Eliminare questo allegato?')) return;
+    const record = consumi[tipo].find(c => c.id === id);
+    if (record && record.allegati) {
+        record.allegati.splice(index, 1);
+        salvaConsumi();
+        popolaListaAllegati(tipo, id);
+        caricaTabelleTutti();
+    }
+  }
+
+
+  /* ===========================
+     Import / Export
+     =========================== */
+
+  function esportaDatiXLSX() {
+    const workbook = XLSX.utils.book_new();
+
+    const riass = [['Tipo', 'Totale consumo (kWh/m³)', 'Spesa totale (€)']];
+    riass.push(['Energia', consumi.energia.reduce((s,c)=>s+(c.consumo||0),0).toFixed(2) + ' kWh', consumi.energia.reduce((s,c)=>s+(c.importo||0),0).toFixed(2)]);
+    riass.push(['Gas', consumi.gas.reduce((s,c)=>s+(c.consumo||0),0).toFixed(2) + ' kWh', consumi.gas.reduce((s,c)=>s+(c.importo||0),0).toFixed(2)]);
+    riass.push(['Acqua', consumi.acqua.reduce((s,c)=>s+(c.consumo||0),0).toFixed(2) + ' m³', consumi.acqua.reduce((s,c)=>s+(c.importo||0),0).toFixed(2)]);
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(riass), 'Riassunto');
+
+    ['energia','gas','acqua'].forEach(tipo => {
+      // Intestazione più descrittiva e coerente per l'importazione
+      const header = ['mese_anno', 'contatore_nome', 'contatore_id', 'contatore_codice', 'consumo_misurato', 'unita_misurata', 'importo', 'consumo_kWh_gas', 'allegati_count'];
+      const dati = [header];
+      consumi[tipo].forEach(r => {
+        const cont = contatori.find(c => c.id === r.contatoreId) || { nome: '-', codice: '-' };
+        let consumo_misurato_val = r.consumo; // Default al consumo principale
+        let unita_misurata_val = tipo === 'energia' ? 'kWh' : (tipo === 'acqua' ? 'm3' : 'kWh'); // Default
+
+        let consumo_kwh_gas_val = ''; // Vuoto di default, verrà riempito solo per gas se applicabile
+
+        if (tipo === 'gas') {
+            consumo_misurato_val = r.consumoOriginale ?? r.consumo; // Il valore originale, se esiste
+            unita_misurata_val = r.tipoOrigine ?? 'kWh'; // L'unità originale
+            consumo_kwh_gas_val = r.consumo; // Il consumo già convertito in kWh per il gas
+        }
+
+        dati.push([
+          r.mese || '',
+          cont.nome || '',
+          cont.id || '',
+          cont.codice || '',
+          consumo_misurato_val != null ? parseFloat(consumo_misurato_val.toFixed(2)) : '',
+          unita_misurata_val || '',
+          (r.importo != null ? parseFloat(r.importo.toFixed(2)) : 0),
+          consumo_kwh_gas_val !== '' ? parseFloat(consumo_kwh_gas_val.toFixed(2)) : '',
+          (r.allegati ? r.allegati.length : 0)
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(dati);
+      const sheetName = tipo.charAt(0).toUpperCase() + tipo.slice(1);
+      XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+    });
+
+    const filename = `consumi_export_${(new Date()).toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  }
+
+  async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+
+    // Importa solo Energia/Gas/Acqua, ignora Riassunto
+    const targetSheets = wb.SheetNames.filter(n => ['Energia','Gas','Acqua'].includes(n));
+    if (targetSheets.length === 0) {
+      alert("Il file non contiene fogli validi (Energia/Gas/Acqua).");
+      return;
+    }
+
+    let importati = 0, errori = 0;
+
+    for (const name of targetSheets) {
+      const sheet = wb.Sheets[name];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+      if (!rows || rows.length < 2) continue;
+
+      const header = rows[0].map(h => String(h).toLowerCase().trim());
+      const data = rows.slice(1);
+
+      const idx = {
+        mese: header.findIndex(h => h.includes('mese')),
+        contatoreId: header.findIndex(h => h.includes('contatore_id')),
+        codice: header.findIndex(h => h.includes('codice')),
+        consumo: header.findIndex(h => h.includes('consumo')),
+        unita: header.findIndex(h => h.includes('unita')),
+        importo: header.findIndex(h => h.includes('importo') || h.includes('spesa') || h.includes('costo')),
+        consumo_kwh: header.findIndex(h => h.includes('kwh')),
+      };
+
+      data.forEach((row, rIndex) => {
+        try {
+          const mese = (row[idx.mese] || '').substring(0, 7);
+          if (!mese) throw new Error(`Mese vuoto riga ${rIndex+2}`);
+          const consumoRaw = row[idx.consumo] || '';
+          const consumo = parseFloat(consumoRaw.toString().replace(',', '.'));
+          if (isNaN(consumo) || consumo <= 0) throw new Error(`Consumo non valido riga ${rIndex+2}`);
+          const importoRaw = row[idx.importo] || '';
+          const importo = parseFloat(importoRaw.toString().replace(',', '.')) || 0;
+
+          let cont = null;
+          if (idx.contatoreId >= 0 && row[idx.contatoreId]) {
+            cont = contatori.find(c => String(c.id) === String(row[idx.contatoreId]));
+          }
+          if (!cont && idx.codice >= 0 && row[idx.codice]) {
+            cont = contatori.find(c => c.codice === String(row[idx.codice]));
+          }
+          if (!cont) throw new Error(`Contatore non trovato riga ${rIndex+2}`);
+
+          const base = { id: Date.now()+Math.random(), contatoreId: cont.id, mese, importo, allegati: [] };
+
+          if (cont.fornitura === 'gas') {
+            let consumoKwh = idx.consumo_kwh >= 0 ? parseFloat((row[idx.consumo_kwh] || '').toString().replace(',', '.')) : NaN;
+            if (isNaN(consumoKwh)) {
+              const un = idx.unita >= 0 ? String(row[idx.unita]).toLowerCase() : '';
+              consumoKwh = consumo;
+              if (un.includes('m3')) consumoKwh = consumo * 10.69;
+              else if (un.includes('lit')) consumoKwh = consumo * 6.6;
+            }
+            consumi.gas.push({ ...base, consumo: consumoKwh, consumoOriginale: consumo, tipoOrigine: row[idx.unita] || '' });
+          } else {
+            consumi[cont.fornitura].push({ ...base, consumo });
+          }
+          importati++;
+        } catch (rowErr) {
+          console.warn('Errore import riga', rowErr);
+          errori++;
+        }
+      });
+    }
+
+    salvaConsumi();
+    caricaTabelleTutti();
+    aggiornaGrafico();
+    alert(`Import completato: ${importati} righe importate, ${errori} errori.`);
+  } catch (err) {
+    console.error('Errore import globale', err);
+    alert('Errore durante import: ' + err.message);
+  }
+  e.target.value = '';
+}
+
+
+  /* Grafico (Statistiche) */
+  let chartInstance = null;
+
+  function getCounterColor(counterId) {
+    if (!chartColorMap.has(counterId)) {
+      const usedColors = new Set(chartColorMap.values());
+      let nextColor = CHART_COLORS_PALETTE[chartColorMap.size % CHART_COLORS_PALETTE.length];
+      
+      // Cerca un colore non ancora usato
+      const availableColors = CHART_COLORS_PALETTE.filter(color => !Array.from(usedColors).includes(color));
+      if (availableColors.length > 0) {
+          nextColor = availableColors[0];
+      } else {
+          // Se tutti i colori della palette sono usati, ricomincia la palette
+          nextColor = CHART_COLORS_PALETTE[chartColorMap.size % CHART_COLORS_PALETTE.length];
+      }
+      chartColorMap.set(counterId, nextColor);
+    }
+    return chartColorMap.get(counterId);
+  }
+
+  function inizializzaGrafico() {
+    const ctx = document.getElementById('chart-consumi').getContext('2d');
+    chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: { labels: [], datasets: []},
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ title:{display:true, text:'Mese'} }, y:{ beginAtZero:true, title:{display:true, text:'Consumo'} } },
+        plugins:{ tooltip:{ mode:'index', intersect:false }, legend: { display: true, position: 'top', labels: { usePointStyle: true } } }
+      }
+    });
+    aggiornaGrafico();
+  }
+
+  function aggiornaGrafico() {
+    if (!chartInstance) return;
+    const start = document.getElementById('filtro-inizio-stat').value;
+    const end = document.getElementById('filtro-fine-stat').value;
+    const labels = generaEtichetteIntervallo(start, end);
+
+    const visibleTypes = {
+      energia: document.getElementById('toggle-energia').checked,
+      gas: document.getElementById('toggle-gas').checked,
+      acqua: document.getElementById('toggle-acqua').checked,
+    };
+
+    // Legge i contatori selezionati dalla variabile `selectedStatCounters`
+    const selectedCounterIds = Array.from(selectedStatCounters); 
+
+    const monthlyConsumptionsByCounter = new Map();
+    ['energia', 'gas', 'acqua'].forEach(type => {
+      // Modifica per rispettare i toggle di tipo (Energia/Gas/Acqua)
+      if (!visibleTypes[type]) return; 
+
+      consumi[type].forEach(r => {
+        const cont = contatori.find(c => c.id === r.contatoreId);
+        if (!cont || cont.stato !== 'attivo') return;
+
+        // Se ci sono contatori selezionati, include solo quelli. Altrimenti, include tutti i contatori del tipo visibile.
+        // Se selectedCounterIds è vuoto, significa "mostra tutti i contatori del tipo visibile".
+        if (selectedCounterIds.length > 0 && !selectedCounterIds.includes(cont.id)) {
+          return;
+        }
+
+        if (!monthlyConsumptionsByCounter.has(cont.id)) { monthlyConsumptionsByCounter.set(cont.id, new Map()); }
+        const counterMonthlyData = monthlyConsumptionsByCounter.get(cont.id);
+        counterMonthlyData.set(r.mese, (counterMonthlyData.get(r.mese) || 0) + (r.consumo || 0));
+      });
+    });
+
+    let datasets = [];
+    // Filtra i contatori da includere nei dataset anche qui, per coerenza con i toggle di visibilità
+    const sortedCounters = contatori.filter(c => c.stato === 'attivo' && visibleTypes[c.fornitura]).sort((a, b) => {
+      const order = ['energia', 'gas', 'acqua']; return order.indexOf(a.fornitura) - order.indexOf(b.fornitura) || a.nome.localeCompare(b.nome);
+    });
+    sortedCounters.forEach(cont => {
+        // Se ci sono contatori selezionati, include solo quelli. Altrimenti, include tutti i contatori del tipo visibile.
+        if (selectedCounterIds.length > 0 && !selectedCounterIds.includes(cont.id)) {
+            return;
+        }
+
+        const data = labels.map(label => monthlyConsumptionsByCounter.get(cont.id)?.get(label) || 0);
+        const color = getCounterColor(cont.id);
+        datasets.push({
+            label: `${cont.nome} (${cont.codice}) - ${forniture[cont.fornitura]?.nome || cont.fornitura}`,
+            data, backgroundColor: color, borderColor: color, borderWidth: 2, fill: false, tension: 0.1
+        });
+    });
+    chartInstance.data.labels = labels.map(l => formatMese(l));
+    chartInstance.data.datasets = datasets;
+    chartInstance.update();
+  }
+
+  function generaEtichetteIntervallo(start, end) {
+    if (!start && !end) {
+        const out = []; const oggi = new Date();
+        for(let i=11;i>=0;i--) {
+            let d = new Date(oggi.getFullYear(), oggi.getMonth()-i, 1);
+            out.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+        }
+        return out;
+    }
+    const allMesi = Object.values(consumi).flat().map(c => c.mese).filter(Boolean).sort();
+    let startYM = start || allMesi[0] || new Date().toISOString().slice(0,7);
+    let endYM = end || allMesi[allMesi.length-1] || new Date().toISOString().slice(0,7);
+    
+    let out = [];
+    const [startYear, startMonth] = startYM.split('-').map(Number);
+    const [endYear, endMonth] = endYM.split('-').map(Number);
+    let d = new Date(startYear, startMonth - 1, 1);
+    while (d.getFullYear() < endYear || (d.getFullYear() === endYear && d.getMonth() <= endMonth - 1)) {
+        out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        d.setMonth(d.getMonth() + 1);
+    }
+    return out;
+  }
+
+  function esportaGraficoXLSX() {
+    const labels = chartInstance.data.labels;
+    const datasets = chartInstance.data.datasets;
+    let header = ['Mese', ...datasets.map(ds => ds.label)];
+    let rows = [header, ...labels.map((label, i) => [label, ...datasets.map(ds => ds.data[i])])];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'ConsumiMensiliDettaglio');
+    XLSX.writeFile(wb, `grafico_consumi_mensili_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }
+  
+  function esportaGraficoCSV() {
+    const labels = chartInstance.data.labels;
+    const datasets = chartInstance.data.datasets;
+    let header = ['Mese', ...datasets.map(ds => ds.label)];
+    let csv = header.join(';') + '\n';
+    labels.forEach((label, i) => {
+        csv += [label, ...datasets.map(ds => ds.data[i])].join(';') + '\n';
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const aEl = document.createElement('a');
+    aEl.href = url;
+    aEl.download = `grafico_consumi_${new Date().toISOString().split('T')[0]}.csv`;
+    aEl.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /* PDF & Utility */
+  function openModalPdf() { document.getElementById('modal-pdf').classList.add('is-active'); }
+  function closeModalPdf() { document.getElementById('modal-pdf').classList.remove('is-active'); }
+  function esportaStatistichePDF() {
+    const { jsPDF } = window.jspdf;
+    const orient = document.querySelector('input[name="pdf-orient"]:checked').value === 'l' ? 'landscape' : 'portrait';
+    const format = document.getElementById('pdf-format').value;
+    const doc = new jsPDF({ orientation: orient, format: format });
+    let y = 10;
+
+    const addTitle = (title, doc, yPos) => {
+        doc.setFontSize(14); doc.text(title, doc.internal.pageSize.getWidth() / 2, yPos, { align: 'center' }); return yPos + 10;
+    };
+    const addTable = (tipo, doc, yPos) => {
+        const table = document.getElementById('table-' + tipo); if (!table) return yPos;
+        const head = Array.from(table.querySelector('thead tr').children).map(th => th.textContent);
+        const body = Array.from(table.querySelector('tbody').children).map(tr => 
+            Array.from(tr.children).map(td => {
+                // Estrai il testo dalla cella, ignorando stili specifici come 'counter-cell'
+                return td.querySelector('.counter-cell')?.textContent || td.textContent;
+            })
+        );
+        // Rimuovi l'ultima colonna "Azioni" dall'head e dal body
+        if (head[head.length - 1] === 'Azioni') {
+            head.pop();
+            body.forEach(row => row.pop());
+        }
+
+        const estHeight = body.length * 7 + 20;
+        if (yPos + estHeight > doc.internal.pageSize.getHeight() - 10 && yPos > 10) { doc.addPage(); yPos = 10; }
+        yPos = addTitle(`Consumi ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`, doc, yPos);
+        doc.autoTable({ head: [head], body: body, startY: yPos });
+        return doc.autoTable.previous.finalY + 10;
+    };
+
+    const selections = Array.from(document.querySelectorAll('#pdf-section-list input:checked')).map(ch => ch.dataset.section);
+    selections.forEach((section, index) => {
+      if (index > 0) { doc.addPage(); y = 10; }
+      if (section === 'chart') {
+        y = addTitle("Grafico consumi", doc, y);
+        const canvas = document.getElementById('chart-consumi');
+        if (canvas) {
+          const imgData = canvas.toDataURL('image/png');
+          const pageW = doc.internal.pageSize.getWidth() - 20; const pageH = doc.internal.pageSize.getHeight() - 20 - y;
+          let imgW = pageW; let imgH = (canvas.height / canvas.width) * imgW;
+          if (imgH > pageH) { imgH = pageH; imgW = (canvas.width / canvas.height) * imgH; }
+          doc.addImage(imgData, 'PNG', 10 + (pageW - imgW) / 2, y + 5, imgW, imgH);
+          y += imgH + 15;
+        }
+      } else {
+        y = addTable(section, doc, y);
+      }
+    });
+    doc.save('statistiche_consumi.pdf');
+    closeModalPdf();
+  }
+  </script>
+<!-- JSON Backup + Auto-backup (injected) -->
+<!-- JSON Backup + Auto-backup (injected) -->
+<script>
+(function(){
+  // ====== Costanti Backup ======
+  const BACKUP = {
+    enabled: 'cm_backup_enabled_v1',
+    everyMin: 'cm_backup_every_min_v1',
+    keep: 'cm_backup_keep_v1',
+    store: 'cm_backup_store_v1'
+  };
+
+  // ====== Snapshot Builder (AUTO-INCLUSIVO STORAGE) ======
+  function buildBackupSnapshot() {
+    // Dump di tutte le chiavi definite in STORAGE (logicalKey -> raw string) + dataset principali
+    const storageValues = {};
+    try {
+      if (typeof STORAGE === 'object' && STORAGE) {
+        Object.entries(STORAGE).forEach(([logicalKey, lsKey]) => {
+          try {
+            const raw = localStorage.getItem(lsKey);
+            storageValues[logicalKey] = raw;
+          } catch(e){ /* ignora per-key */ }
+        });
+      }
+    } catch(e){ /* ignora globale */ }
+
+    return {
+      app: 'ConsumiManager',
+      version: 2, // auto-inclusive STORAGE
+      exportedAt: new Date().toISOString(),
+      data: {
+        forniture,
+        contatori,
+        consumi
+      },
+      storage: {
+        mapKeys: STORAGE,     // mappa attuale (info)
+        values: storageValues // logicalKey -> raw string
+      }
+    };
+  }
+
+  // ====== Download helper ======
+  function downloadJSON(obj, filename) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 0);
+  }
+
+  // ====== Ripristino centralizzato ======
+  function restoreFromSnapshot(snap) {
+    if (!snap || !snap.data) throw new Error('Snapshot non valido.');
+
+    // 1) Ripristina STORAGE
+    try {
+      if (snap.storage && snap.storage.values && typeof STORAGE === 'object') {
+        Object.entries(snap.storage.values).forEach(([logicalKey, rawValue]) => {
+          const lsKey = STORAGE[logicalKey];
+          if (lsKey) {
+            try { localStorage.setItem(lsKey, rawValue === undefined ? '' : String(rawValue)); }
+            catch(e){ /* quota o permessi */ }
+          }
+        });
+      }
+    } catch(e){ /* best effort */ }
+
+    // 2) Ripristina dataset
+    forniture = snap.data.forniture || {};
+    contatori = snap.data.contatori || [];
+    consumi   = snap.data.consumi   || { energia: [], gas: [], acqua: [] };
+
+    // 3) Salva/ricarica e refresh UI
+    salvaForniture(); salvaContatori(); salvaConsumi();
+    if (typeof caricaDati === 'function') caricaDati();
+
+    popolaConfigLists();
+    popolaFornitureSelects();
+    popolaContatoriSelects();
+    popolaFiltriContatoriSchede();
+    if (typeof popolaStatContatoriCheckboxes === 'function') popolaStatContatoriCheckboxes();
+    if (typeof caricaTabelleTutti === 'function') caricaTabelleTutti();
+    if (typeof aggiornaGrafico === 'function') aggiornaGrafico();
+  }
+
+  // ====== Export/Import API ======
+  function esportaDatiJSON() {
+    const snap = buildBackupSnapshot();
+    const fn = `consumi_backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
+    downloadJSON(snap, fn);
+  }
+
+  function handleImportJSON(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (obj.app !== 'ConsumiManager' || !obj.data) throw new Error('File JSON non riconosciuto.');
+        restoreFromSnapshot(obj);
+        alert('Import JSON completato.');
+      } catch (err) {
+        alert('Import JSON fallito: ' + (err && err.message ? err.message : err));
+      } finally {
+        e.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // ====== Config Auto-backup ======
+  function loadBackupCfg() {
+    return {
+      enabled: JSON.parse(localStorage.getItem(BACKUP.enabled) || 'false'),
+      everyMin: parseInt(localStorage.getItem(BACKUP.everyMin) || '60', 10),
+      keep: parseInt(localStorage.getItem(BACKUP.keep) || '10', 10)
+    };
+  }
+  function saveBackupCfg(cfg) {
+    localStorage.setItem(BACKUP.enabled, JSON.stringify(!!cfg.enabled));
+    localStorage.setItem(BACKUP.everyMin, String(Math.max(1, cfg.everyMin|0)));
+    localStorage.setItem(BACKUP.keep,    String(Math.max(1, cfg.keep|0)));
+    scheduleAutoBackup();
+  }
+
+  function listBackups() { return JSON.parse(localStorage.getItem(BACKUP.store) || '[]'); }
+  function saveBackups(list) { localStorage.setItem(BACKUP.store, JSON.stringify(list)); }
+
+  function makeLocalBackup(label='auto') {
+    const snap = buildBackupSnapshot();
+    const entry = {
+      id: Date.now(),
+      ts: new Date().toISOString(),
+      label,
+      sizeBytes: JSON.stringify(snap).length,
+      snapshot: snap
+    };
+    const list = listBackups();
+    list.unshift(entry);
+    const keep = loadBackupCfg().keep;
+    if (list.length > keep) list.length = keep;
+    try {
+      saveBackups(list);
+      renderBackupList();
+    } catch (e) {
+      alert('Backup non riuscito: spazio di archiviazione locale esaurito.');
+    }
+    return entry;
+  }
+
+  function renderBackupList() {
+    const ul = document.getElementById('backup-list');
+    if (!ul) return;
+    const list = listBackups();
+    ul.innerHTML = '';
+    if (!list.length) {
+      ul.innerHTML = '<p class="small-muted">Nessun backup presente.</p>';
+      return;
+    }
+    list.forEach(b => {
+      const li = document.createElement('li');
+      li.style.display = 'flex';
+      li.style.justifyContent = 'space-between';
+      li.style.alignItems = 'center';
+      li.style.padding = '6px 0';
+      li.innerHTML = `
+        <div>
+          <strong>${new Date(b.ts).toLocaleString('it-IT')}</strong>
+          <span class="small-muted">(${b.label}) — ${Math.round(b.sizeBytes/1024)} KB</span>
+        </div>
+        <div class="buttons are-small">
+          <button class="button is-light" data-action="download">Scarica</button>
+          <button class="button is-warning is-light" data-action="restore">Ripristina</button>
+          <button class="button is-danger is-light" data-action="delete">Elimina</button>
+        </div>`;
+      li.addEventListener('click', ev => {
+        const action = ev.target?.dataset?.action;
+        if (!action) return;
+        if (action === 'download') {
+          downloadJSON(b.snapshot, `consumi_backup_${b.ts.replace(/[:T]/g,'-')}.json`);
+        } else if (action === 'restore') {
+          if (confirm('Ripristinare i dati da questo backup?')) {
+            restoreFromSnapshot(b.snapshot);
+            alert('Ripristino completato.');
+          }
+        } else if (action === 'delete') {
+          const arr = listBackups().filter(x => x.id !== b.id);
+          saveBackups(arr);
+          renderBackupList();
+        }
+      });
+      ul.appendChild(li);
+    });
+  }
+
+  // ====== Timer Auto-backup ======
+  let autoBackupTimer = null;
+  function scheduleAutoBackup() {
+    if (autoBackupTimer) { clearInterval(autoBackupTimer); autoBackupTimer = null; }
+    const cfg = loadBackupCfg();
+    if (!cfg.enabled) return;
+    autoBackupTimer = setInterval(() => { makeLocalBackup('auto'); }, cfg.everyMin * 60 * 1000);
+  }
+
+  // ====== Init tab Dati ======
+  function initDataBackupUI() {
+    const cfg = loadBackupCfg();
+    const en = document.getElementById('auto-backup-enabled');
+    const ev = document.getElementById('auto-backup-every');
+    const kp = document.getElementById('auto-backup-keep');
+    if (en) en.checked = !!cfg.enabled;
+    if (ev) ev.value = cfg.everyMin;
+    if (kp) kp.value = cfg.keep;
+    renderBackupList();
+  }
+
+  // ====== Wiring ======
+  document.addEventListener('DOMContentLoaded', () => {
+    // Header buttons
+    const btnExportJson = document.getElementById('btn-export-json');
+    const btnImportJson = document.getElementById('btn-import-json');
+    const fileJson      = document.getElementById('file-import-json');
+
+    if (btnExportJson) btnExportJson.addEventListener('click', esportaDatiJSON);
+    if (btnImportJson && fileJson) btnImportJson.addEventListener('click', () => fileJson.click());
+    if (fileJson) fileJson.addEventListener('change', handleImportJSON);
+
+    // Duplicate import in Config -> Dati
+    const btnImportDup = document.getElementById('btn-import-json-dup');
+    if (btnImportDup && fileJson) btnImportDup.addEventListener('click', () => fileJson.click());
+
+    // Manual backup + download last
+    const btnBackupNow = document.getElementById('btn-backup-now');
+    if (btnBackupNow) btnBackupNow.addEventListener('click', () => { makeLocalBackup('manuale'); alert('Backup creato.'); });
+    const btnBackupDownload = document.getElementById('btn-backup-download-last');
+    if (btnBackupDownload) btnBackupDownload.addEventListener('click', () => {
+      const arr = listBackups();
+      if (!arr.length) { alert('Nessun backup disponibile.'); return; }
+      downloadJSON(arr[0].snapshot, `consumi_backup_${arr[0].ts.replace(/[:T]/g,'-')}.json`);
+    });
+
+    // Save autobackup settings
+    const btnSaveAuto = document.getElementById('btn-save-autobackup');
+    if (btnSaveAuto) btnSaveAuto.addEventListener('click', () => {
+      const cfg = {
+        enabled: document.getElementById('auto-backup-enabled').checked,
+        everyMin: parseInt(document.getElementById('auto-backup-every').value || '60', 10),
+        keep: parseInt(document.getElementById('auto-backup-keep').value || '10', 10)
+      };
+      saveBackupCfg(cfg);
+      alert('Impostazioni auto-backup salvate.');
+    });
+
+    // When clicking the "Dati" tab inside Config, init the UI
+    document.querySelectorAll('[data-config-tab]').forEach(li => {
+      li.addEventListener('click', () => {
+        const tabName = li.getAttribute('data-config-tab');
+        if (tabName === 'data') initDataBackupUI();
+      });
+    });
+
+    // Start auto-backup timer if enabled
+    scheduleAutoBackup();
+  });
+})();
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Upgrade tabs look
+  document.querySelectorAll('#modal-config .tabs ul').forEach(ul => {
+    ul.classList.add('is-boxed','is-toggle','is-fullwidth');
+  });
+  // Make common sections appear as cards (non-destructive)
+  document.querySelectorAll('#config-forniture, #config-contatori, #config-sharepoint, #config-data').forEach(sec => {
+    if (!sec.classList.contains('card-like')) sec.classList.add('card-like');
+  });
+});
+</script>
+</body>
+</html>
