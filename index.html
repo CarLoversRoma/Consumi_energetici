@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Consumi Manager – Cloud Edition</title>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    html,body { background:#f5f7fa; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; height:100%; font-size: 0.9rem; }
+    .app { max-width:1600px; margin:28px auto; background:white; border-radius:8px; box-shadow:0 6px 18px rgba(10,10,10,0.06); overflow:hidden; }
+    header.app-header { display:flex; align-items:center; justify-content:space-between; padding:18px 24px; background:#0f1724; color:white; flex-wrap: wrap; gap: 10px;}
+    header.app-header h1 { font-weight:600; font-size:1.1rem; margin:0; }
+    .content-area { padding:20px; }
+    .card-min { border-radius:8px; border:1px solid #e6eef6; padding:12px; background:#fff; }
+    .small-muted { font-size:0.82rem; color:#6b7280; }
+    .table th, .table td { vertical-align: middle; }
+    .table td:last-child { white-space: nowrap; width: 1%; }
+    .chart-wrap { height:360px; }
+    .pill { background:#eef2ff; padding:6px 10px; border-radius:999px; font-size:0.85rem; color:#3730a3; }
+    .inline-gap { display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
+    .pdf-list li { cursor: move; user-select: none; }
+    #allegati-lista li { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+    .counter-cell { border-radius: 4px; padding: 4px 8px; margin: -4px 0; display: inline-block; line-height: 1.2; }
+    .sync-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 0.8rem; }
+    .sync-indicator.synced { background: #d1fae5; color: #065f46; }
+    .sync-indicator.syncing { background: #fef3c7; color: #92400e; }
+    .sync-indicator.offline { background: #e5e7eb; color: #374151; }
+    .sync-indicator.error { background: #fee2e2; color: #991b1b; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinning { animation: spin 1s linear infinite; }
+    .config-panel { background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #e5e7eb; }
+    .sql-script { background: #1e293b; color: #e2e8f0; padding: 16px; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.85rem; overflow-x: auto; max-height: 400px; margin: 1rem 0; }
+    .migration-step { background: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .migration-step.completed { border-color: #10b981; background: #f0fdf4; }
+    .migration-step.active { border-color: #3b82f6; background: #eff6ff; }
+    .migration-step h5 { margin: 0 0 8px 0; display: flex; align-items: center; gap: 8px; }
+    .step-number { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #e5e7eb; color: #374151; font-weight: 600; font-size: 0.9rem; }
+    .step-number.completed { background: #10b981; color: white; }
+    .step-number.active { background: #3b82f6; color: white; }
+    .code-inline { background: #f1f5f9; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 0.85em; }
+  </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <h1>⚡ Consumi Manager</h1>
+        <span id="sync-status" class="sync-indicator offline">
+          <span id="sync-icon">○</span>
+          <span id="sync-text">Offline</span>
+        </span>
+      </div>
+      <div class="inline-gap">
+        <!-- Nuovi Pulsanti JSON -->
+        <button class="button is-info is-small" id="btn-export-json" title="Esporta tutto in JSON">
+          <span>💾 Esporta JSON</span>
+        </button>
+        <button class="button is-info is-small" id="btn-import-json-trigger" title="Importa da file JSON">
+          <span>📂 Importa JSON</span>
+        </button>
+        
+        <div style="width: 1px; height: 24px; background: rgba(255,255,255,0.2); margin: 0 8px;"></div>
+
+        <button class="button is-light is-small" id="btn-export-xlsx">Esporta .xlsx</button>
+        <button class="button is-light is-small" id="btn-import-xlsx">Importa .xlsx</button>
+        <button class="button is-primary is-small" id="btn-open-config">⚙️ Configurazioni</button>
+      </div>
+    </header>
+
+    <div class="content-area">
+      <div class="tabs is-toggle is-fullwidth">
+        <ul id="mainTabs">
+          <li class="is-active" data-tab="energia"><a>Energia</a></li>
+          <li data-tab="gas"><a>Gas</a></li>
+          <li data-tab="acqua"><a>Acqua</a></li>
+          <li data-tab="statistiche"><a>Statistiche</a></li>
+        </ul>
+      </div>
+
+      <div id="panels">
+        <section id="energia" class="panel">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo – <span class="pill">Energia</span></h4>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-energia"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori">⚙️</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-energia" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+                <div class="field">
+                  <label>Consumo (kWh)</label>
+                  <div class="control"><input id="consumo-energia" type="number" class="input" step="0.01" placeholder="0.00"></div>
+                </div>
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-energia" type="number" class="input" step="0.01" placeholder="0.00"></div>
+                </div>
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('energia')">Aggiungi consumo</button></div></div>
+              </div>
+              <div style="height:16px"></div>
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-energia" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-energia" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-energia" onchange="applicaFiltro('energia')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('energia')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('energia')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-energia" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-energia"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="gas" class="panel" style="display:none;">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo – <span class="pill">Gas</span></h4>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-gas"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori-2">⚙️</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-gas" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+                <div class="field">
+                  <label>Unità originale</label>
+                  <div class="control"><div class="select"><select id="tipo-gas"><option value="kWh">kWh</option><option value="m3">m³</option><option value="litri">litri (GPL)</option></select></div></div>
+                </div>
+                <div class="field">
+                  <label>Consumo</label>
+                  <div class="control"><input id="consumo-gas" type="number" class="input" step="0.01"></div>
+                </div>
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-gas" type="number" class="input" step="0.01"></div>
+                </div>
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('gas')">Aggiungi consumo</button></div></div>
+              </div>
+              <div style="height:16px"></div>
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-gas" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-gas" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-gas" onchange="applicaFiltro('gas')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('gas')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('gas')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-gas" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo orig.</th><th>Consumo (kWh)</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-gas"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="acqua" class="panel" style="display:none;">
+          <div class="columns">
+            <div class="column is-5">
+              <div class="card-min">
+                <h4 class="title is-5">Nuovo consumo – <span class="pill">Acqua</span></h4>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control is-flex">
+                    <div class="select is-fullwidth" style="flex:1"><select id="contatore-select-acqua"></select></div>
+                    <button class="button is-light is-small" id="btn-open-contatori-3">⚙️</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Mese / Anno</label>
+                  <div class="control"><input id="mese-acqua" type="text" class="input" placeholder="Seleziona mese e anno"></div>
+                </div>
+                <div class="field">
+                  <label>Consumo (m³)</label>
+                  <div class="control"><input id="consumo-acqua" type="number" class="input" step="0.01"></div>
+                </div>
+                <div class="field">
+                  <label>Importo (€)</label>
+                  <div class="control"><input id="importo-acqua" type="number" class="input" step="0.01"></div>
+                </div>
+                <div class="field"><div class="control"><button class="button is-primary" onclick="aggiungiConsumo('acqua')">Aggiungi consumo</button></div></div>
+              </div>
+              <div style="height:16px"></div>
+              <div class="card-min">
+                <h4 class="title is-6">Filtra per periodo</h4>
+                <div class="field">
+                  <label>Da</label>
+                  <div class="control"><input id="filtro-inizio-acqua" type="text" class="input" placeholder="Mese inizio"></div>
+                </div>
+                <div class="field">
+                  <label>A</label>
+                  <div class="control"><input id="filtro-fine-acqua" type="text" class="input" placeholder="Mese fine"></div>
+                </div>
+                <div class="field">
+                  <label>Contatore</label>
+                  <div class="control">
+                    <div class="select is-fullwidth">
+                      <select id="filtro-contatore-acqua" onchange="applicaFiltro('acqua')">
+                        <option value="">Tutti i contatori</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="field is-grouped">
+                  <div class="control"><button class="button is-light" onclick="applicaFiltro('acqua')">Applica</button></div>
+                  <div class="control"><button class="button is-light" onclick="resetFiltro('acqua')">Reset</button></div>
+                </div>
+              </div>
+            </div>
+            <div class="column is-7">
+              <div class="card-min">
+                <h4 class="title is-6">Elenco consumi</h4>
+                <div style="max-height:420px; overflow:auto;">
+                  <table id="table-acqua" class="table is-fullwidth is-hoverable">
+                    <thead><tr><th>Mese</th><th>Contatore</th><th>Consumo</th><th>Importo</th><th>Azioni</th></tr></thead>
+                    <tbody id="tabella-acqua"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="statistiche" class="panel" style="display:none;">
+          <div class="card-min">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h4 class="title is-5">Statistiche consumi (mensili)</h4>
+              <div class="inline-gap">
+                <label class="checkbox"><input id="toggle-energia" type="checkbox" checked> Energia</label>
+                <label class="checkbox"><input id="toggle-gas" type="checkbox" checked> Gas</label>
+                <label class="checkbox"><input id="toggle-acqua" type="checkbox" checked> Acqua</label>
+              </div>
+            </div>
+            <div style="margin-top:12px;" class="field">
+              <label class="label small-muted">Filtra per Contatore:</label>
+              <div id="filtro-contatori-stat-checkboxes" style="margin-top: 8px;"></div>
+            </div>
+            <div style="margin-top:12px;" class="inline-gap">
+              <label class="small-muted">Periodo:</label>
+              <input id="filtro-inizio-stat" type="text" class="input is-small" style="width:130px;" placeholder="Inizio">
+              <input id="filtro-fine-stat" type="text" class="input is-small" style="width:130px;" placeholder="Fine">
+              <button class="button is-light is-small" onclick="applicaFiltroStat()">Applica</button>
+              <button class="button is-light is-small" onclick="resetFiltroStat()">Reset</button>
+            </div>
+            <div style="margin-top:12px;"><div class="chart-wrap"><canvas id="chart-consumi"></canvas></div></div>
+            <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;">
+              <button class="button is-light is-small" onclick="esportaGraficoXLSX()">Esporta grafico (.xlsx)</button>
+              <button class="button is-light is-small" onclick="esportaGraficoCSV()">Esporta grafico (.csv)</button>
+              <button class="button is-light is-small" id="btn-export-pdf">Esporta PDF</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Configurazioni -->
+  <div id="modal-config" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card" style="width: 95%; max-width: 1000px;">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Configurazioni</p>
+        <button class="delete" aria-label="close" id="close-config"></button>
+      </header>
+      <section class="modal-card-body">
+        <div class="tabs">
+          <ul>
+            <li class="is-active" data-config-tab="supabase"><a>🔌 Supabase Setup</a></li>
+            <li data-config-tab="migrazione"><a>📦 Migrazione</a></li>
+            <li data-config-tab="contatori"><a>Contatori</a></li>
+            <li data-config-tab="sharepoint"><a>SharePoint</a></li>
+            <li data-config-tab="data"><a>Dati</a></li>
+          </ul>
+        </div>
+
+        <!-- Tab Supabase Setup -->
+        <div id="config-supabase" class="config-tab active-config">
+          <div class="notification is-info is-light">
+            <p><strong>🚀 Benvenuto in Consumi Manager Cloud!</strong></p>
+            <p>Questa applicazione salva i tuoi dati su Supabase per avere accesso ovunque e sincronizzazione in tempo reale.</p>
+          </div>
+
+          <div class="migration-step" id="step-1">
+            <h5><span class="step-number" id="step-1-num">1</span> Crea progetto Supabase</h5>
+            <p class="small-muted">Vai su <a href="https://supabase.com" target="_blank">supabase.com</a>, registrati e crea un nuovo progetto.</p>
+          </div>
+
+          <div class="migration-step" id="step-2">
+            <h5><span class="step-number" id="step-2-num">2</span> Esegui migrazione SQL</h5>
+            <p class="small-muted">Nel dashboard Supabase, vai su <strong>SQL Editor</strong> e crea una nuova query. Copia e incolla questo script:</p>
+            <button class="button is-small is-light" onclick="copySQL()">📋 Copia SQL</button>
+            <button class="button is-small is-light" onclick="toggleSQL()">👁️ Mostra/Nascondi</button>
+            <div id="sql-container" style="display:none;">
+              <pre class="sql-script" id="sql-script">-- Consumi Manager - Database Migration
+CREATE TABLE IF NOT EXISTS forniture (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  codice TEXT UNIQUE NOT NULL,
+  nome TEXT NOT NULL,
+  attiva BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS contatori (
+  id SERIAL PRIMARY KEY,
+  nome TEXT NOT NULL,
+  codice TEXT UNIQUE NOT NULL,
+  fornitura TEXT NOT NULL,
+  ubicazione TEXT,
+  stato TEXT DEFAULT 'attivo' CHECK (stato IN ('attivo', 'inattivo')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS consumi (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  tipo TEXT NOT NULL CHECK (tipo IN ('energia', 'gas', 'acqua')),
+  contatore_id INTEGER REFERENCES contatori(id) ON DELETE CASCADE,
+  mese TEXT NOT NULL,
+  consumo NUMERIC(10,2) NOT NULL,
+  consumo_originale NUMERIC(10,2),
+  tipo_origine TEXT,
+  importo NUMERIC(10,2) DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(tipo, contatore_id, mese)
+);
+
+CREATE TABLE IF NOT EXISTS allegati (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  consumo_id UUID REFERENCES consumi(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL,
+  tipo_file TEXT,
+  data TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS configurazioni (
+  chiave TEXT PRIMARY KEY,
+  valore TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_consumi_tipo ON consumi(tipo);
+CREATE INDEX IF NOT EXISTS idx_consumi_contatore ON consumi(contatore_id);
+CREATE INDEX IF NOT EXISTS idx_consumi_mese ON consumi(mese);
+CREATE INDEX IF NOT EXISTS idx_allegati_consumo ON allegati(consumo_id);
+CREATE INDEX IF NOT EXISTS idx_contatori_fornitura ON contatori(fornitura);
+
+ALTER TABLE forniture ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contatori ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consumi ENABLE ROW LEVEL SECURITY;
+ALTER TABLE allegati ENABLE ROW LEVEL SECURITY;
+ALTER TABLE configurazioni ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Enable all for authenticated users" ON forniture FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON contatori FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON consumi FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON allegati FOR ALL USING (true);
+CREATE POLICY "Enable all for authenticated users" ON configurazioni FOR ALL USING (true);
+
+INSERT INTO forniture (codice, nome, attiva) VALUES
+  ('energia', 'Energia Elettrica', true),
+  ('gas', 'Gas', true),
+  ('acqua', 'Acqua', true)
+ON CONFLICT (codice) DO NOTHING;
+
+INSERT INTO contatori (nome, codice, fornitura, ubicazione, stato) VALUES
+  ('Casa principale', 'EN001', 'energia', 'Abitazione', 'attivo'),
+  ('Riscaldamento', 'GS001', 'gas', 'Caldaia', 'attivo'),
+  ('Contatore acqua', 'AQ001', 'acqua', 'Generale', 'attivo')
+ON CONFLICT (codice) DO NOTHING;</pre>
+            </div>
+            <p class="small-muted" style="margin-top:8px;">Dopo aver incollato, clicca <strong>Run</strong> per eseguire lo script.</p>
+          </div>
+
+          <div class="migration-step" id="step-3">
+            <h5><span class="step-number" id="step-3-num">3</span> Configura credenziali</h5>
+            <p class="small-muted">Nel dashboard Supabase, vai su <strong>Settings → API</strong> e copia le credenziali qui sotto:</p>
+            <div class="field" style="margin-top:12px;">
+              <label class="label">Supabase URL</label>
+              <div class="control">
+                <input id="supabase-url" class="input" type="text" placeholder="https://xxx.supabase.co">
+              </div>
+            </div>
+            <div class="field">
+              <label class="label">Supabase Anon Key</label>
+              <div class="control">
+                <input id="supabase-key" class="input" type="password" placeholder="eyJ...">
+              </div>
+            </div>
+            <div class="field is-grouped">
+              <div class="control">
+                <button class="button is-primary" id="btn-save-supabase">💾 Salva e Connetti</button>
+              </div>
+              <div class="control">
+                <button class="button is-light" id="btn-test-connection">🔌 Testa Connessione</button>
+              </div>
+            </div>
+            <div id="connection-status" style="margin-top: 1rem;"></div>
+          </div>
+        </div>
+
+        <!-- Tab Migrazione -->
+        <div id="config-migrazione" class="config-tab" style="display:none;">
+          <div class="notification is-warning is-light">
+            <p><strong>⚠️ Migrazione da localStorage</strong></p>
+            <p>Se hai già dei dati salvati localmente nel browser, usa questo strumento per trasferirli su Supabase.</p>
+          </div>
+
+          <div class="config-panel">
+            <h4 class="title is-6">📊 Stato dati locali</h4>
+            <div id="local-data-status">
+              <p class="small-muted">Caricamento...</p>
+            </div>
+          </div>
+
+          <div class="config-panel">
+            <h4 class="title is-6">🚀 Avvia Migrazione</h4>
+            <p class="small-muted">Questa operazione copierà tutti i dati locali su Supabase. I dati locali rimarranno intatti.</p>
+            <button class="button is-primary" id="btn-migrate" disabled>
+              <span id="migrate-text">▶️ Avvia Migrazione</span>
+            </button>
+            <div id="migration-log" style="margin-top: 1rem;"></div>
+          </div>
+        </div>
+
+        <!-- Tab Contatori -->
+        <div id="config-contatori" class="config-tab" style="display:none;">
+          <div style="display:grid; grid-template-columns:1fr 280px; gap:12px;">
+            <div>
+              <label class="label">Nome contatore</label><input id="contatore-nome" class="input" placeholder="es. Casa, Caldaia">
+              <label class="label" style="margin-top:8px">Codice unico</label><input id="contatore-codice" class="input" placeholder="es. EN001">
+              <label class="label" style="margin-top:8px">Fornitura</label>
+              <div class="control"><div class="select is-fullwidth"><select id="contatore-fornitura"></select></div></div>
+              <label class="label" style="margin-top:8px">Ubicazione</label><input id="contatore-ubicazione" class="input" placeholder="es. Piano terra">
+              <label class="label" style="margin-top:8px">Stato</label>
+              <div class="control"><div class="select is-fullwidth"><select id="contatore-stato"><option value="attivo">Attivo</option><option value="inattivo">Inattivo</option></select></div></div>
+              <div style="margin-top:10px;" class="inline-gap">
+                <button class="button is-primary" id="btn-salva-contatore">Salva contatore</button>
+                <button class="button is-light" id="btn-annu-modifica-contatore" style="display:none">Annulla</button>
+              </div>
+            </div>
+            <div>
+              <h4 class="title is-6">Elenco contatori</h4>
+              <div style="max-height:360px; overflow:auto; border-left:1px solid #eef2f7; padding-left:12px;">
+                <div id="lista-contatori-config"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab SharePoint -->
+        <div id="config-sharepoint" class="config-tab" style="display:none;">
+          <h3 class="title is-6">Percorso SharePoint</h3>
+          <p class="small-muted">Inserisci l'URL base della cartella SharePoint. Nel tabellone apparirà un pulsante per aprire questo link.</p>
+          <div class="field">
+            <label class="label">URL della cartella SharePoint</label>
+            <div class="control">
+              <input id="sharepoint-path" class="input" type="text" placeholder="https://tuo-tenant.sharepoint.com/.../CartellaConsumi">
+            </div>
+          </div>
+          <div class="field">
+            <div class="control">
+              <button class="button is-primary" id="btn-salva-sharepoint">Salva Percorso</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab Dati -->
+        <div id="config-data" class="config-tab" style="display:none;">
+          <h3 class="title is-6">Elimina tutti i consumi</h3>
+          <p class="small-muted" style="margin-bottom: 1rem;">
+            Elimina permanentemente tutti i consumi dal cloud. Questa azione è irreversibile.
+          </p>
+          <div class="field">
+            <div class="control">
+              <button class="button is-danger" id="btn-elimina-tutti-consumi">🗑️ Elimina TUTTI i consumi</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button" id="close-config-2">Chiudi</button>
+      </footer>
+    </div>
+  </div>
+
+  <!-- Input nascosto per importazione JSON -->
+  <input type="file" id="file-import" accept=".xlsx,.xls,.csv" style="display:none;">
+  <input type="file" id="file-import-json" accept=".json" style="display:none;">
+
+  <!-- Modal PDF -->
+  <div id="modal-pdf" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Esporta PDF</p>
+        <button class="delete" aria-label="close" id="close-pdf-modal"></button>
+      </header>
+      <section class="modal-card-body">
+        <h3 class="title is-6">Sezioni da esportare</h3>
+        <div class="field">
+          <label class="label">Orientamento</label>
+          <div class="control">
+            <label class="radio"><input type="radio" name="pdf-orient" value="p" checked> Verticale (Portrait)</label>
+            <label class="radio"><input type="radio" name="pdf-orient" value="l"> Orizzontale (Landscape)</label>
+          </div>
+        </div>
+        <ul id="pdf-section-list">
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="chart" checked> Grafico</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="energia" checked> Energia</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="gas" checked> Gas</label></li>
+          <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="acqua" checked> Acqua</label></li>
+        </ul>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-primary" id="btn-genera-pdf">Genera PDF</button>
+      </footer>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+
+  <script>
+    /* ===========================
+       CONFIGURAZIONE GLOBALE
+       =========================== */
+    
+    let supabase = null;
+    let contatoriLS = [];
+    let consumiLS = { energia: [], gas: [], acqua: [] };
+    let contatori = [];
+    let consumi = { energia: [], gas: [], acqua: [] };
+    let forniture = {};
+    let contatoreInModifica = null;
+    let chartColorMap = new Map();
+    let selectedStatCounters = new Set();
+    let isMigratingData = false;
+
+    const CHART_COLORS_PALETTE = [
+      '#8dd3c7', '#81D4FA', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd',
+      '#ccebc5', '#ffed6f', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00'
+    ];
+
+    /* ===========================
+       SUPABASE INIT & SYNC
+       =========================== */
+
+    async function initSupabase() {
+      const url = localStorage.getItem('cm_supabase_url');
+      const key = localStorage.getItem('cm_supabase_key');
+
+      if (!url || !key) {
+        updateSyncStatus('offline', 'Offline - Configura Supabase');
+        caricaDatiLocali();
+        return;
+      }
+
+      try {
+        const { createClient } = window.supabase;
+        supabase = createClient(url, key);
+        
+        // Testa connessione
+        const { data, error } = await supabase.from('contatori').select('count', { count: 'exact' });
+        
+        if (error) throw error;
+        
+        updateSyncStatus('synced', 'Sincronizzato');
+        await caricaDatiDaSupabase();
+        setupRealtimeSync();
+      } catch (err) {
+        console.error('Errore connessione Supabase:', err);
+        updateSyncStatus('error', 'Errore connessione');
+        caricaDatiLocali();
+      }
+    }
+
+    function updateSyncStatus(state, text) {
+      const status = document.getElementById('sync-status');
+      const icon = document.getElementById('sync-icon');
+      const statusText = document.getElementById('sync-text');
+      
+      status.className = `sync-indicator ${state}`;
+      statusText.textContent = text;
+      
+      if (state === 'syncing') {
+        icon.textContent = '⟳';
+        icon.classList.add('spinning');
+      } else {
+        icon.classList.remove('spinning');
+        icon.textContent = state === 'synced' ? '●' : state === 'error' ? '✕' : '○';
+      }
+    }
+
+    async function caricaDatiDaSupabase() {
+      if (!supabase) return;
+      
+      try {
+        updateSyncStatus('syncing', 'Sincronizzazione...');
+        
+        // Carica contatori
+        const { data: contatoriData } = await supabase.from('contatori').select('*');
+        contatori = contatoriData || [];
+        
+        // Carica consumi con allegati
+        const { data: consumiData } = await supabase.from('consumi').select('*');
+        
+        consumi = { energia: [], gas: [], acqua: [] };
+        if (consumiData) {
+          for (const consumo of consumiData) {
+            const { data: allegatiData } = await supabase
+              .from('allegati')
+              .select('*')
+              .eq('consumo_id', consumo.id);
+            
+            consumi[consumo.tipo].push({
+              ...consumo,
+              allegati: allegatiData || []
+            });
+          }
+        }
+        
+        // Carica forniture
+        const { data: fornitureData } = await supabase.from('forniture').select('*');
+        forniture = {};
+        if (fornitureData) {
+          fornitureData.forEach(f => {
+            forniture[f.codice] = { nome: f.nome, attiva: f.attiva };
+          });
+        }
+        
+        // Carica configurazioni
+        const { data: configData } = await supabase.from('configurazioni').select('*');
+        if (configData) {
+          const pathConfig = configData.find(c => c.chiave === 'sharepoint_path');
+          if (pathConfig) {
+            localStorage.setItem('cm_sharepoint_path_v1', pathConfig.valore);
+          }
+        }
+        
+        // Aggiorna UI
+        popolaContatoriSelects();
+        caricaTabelleTutti();
+        aggiornaGrafico();
+        
+        updateSyncStatus('synced', 'Sincronizzato');
+      } catch (err) {
+        console.error('Errore caricamento dati:', err);
+        updateSyncStatus('error', 'Errore sincronizzazione');
+      }
+    }
+
+    function setupRealtimeSync() {
+      if (!supabase) return;
+      
+      // Ascolta cambiamenti su consumi
+      supabase
+        .channel('consumi-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'consumi' }, (payload) => {
+          console.log('Consumo cambiato:', payload);
+          caricaDatiDaSupabase();
+        })
+        .subscribe();
+
+      // Ascolta cambiamenti su contatori
+      supabase
+        .channel('contatori-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'contatori' }, (payload) => {
+          console.log('Contatore cambiato:', payload);
+          caricaDatiDaSupabase();
+        })
+        .subscribe();
+    }
+
+    async function salvaConsumoSupabase(tipo, contatoreId, mese, consumo, importo, consumoOriginale = null, tipoOrigine = null) {
+      if (!supabase) return false;
+      
+      try {
+        const data = {
+          tipo,
+          contatore_id: contatoreId,
+          mese,
+          consumo,
+          importo: importo || 0,
+          consumo_originale: consumoOriginale,
+          tipo_origine: tipoOrigine
+        };
+        
+        const { error } = await supabase.from('consumi').insert([data]);
+        if (error) throw error;
+        
+        await caricaDatiDaSupabase();
+        return true;
+      } catch (err) {
+        console.error('Errore salvataggio consumo:', err);
+        alert('Errore: ' + err.message);
+        return false;
+      }
+    }
+
+    async function eliminaConsumoSupabase(consumoId) {
+      if (!supabase) return false;
+      
+      try {
+        // Elimina allegati prima
+        await supabase.from('allegati').delete().eq('consumo_id', consumoId);
+        // Elimina consumo
+        const { error } = await supabase.from('consumi').delete().eq('id', consumoId);
+        if (error) throw error;
+        
+        await caricaDatiDaSupabase();
+        return true;
+      } catch (err) {
+        console.error('Errore eliminazione:', err);
+        return false;
+      }
+    }
+
+    async function salvaContatoreSupabase(nome, codice, fornitura, ubicazione, stato, id = null) {
+      if (!supabase) return false;
+      
+      try {
+        const data = { nome, codice, fornitura, ubicazione: ubicazione || '', stato: stato || 'attivo' };
+        
+        if (id) {
+          const { error } = await supabase.from('contatori').update(data).eq('id', id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from('contatori').insert([data]);
+          if (error) throw error;
+        }
+        
+        await caricaDatiDaSupabase();
+        return true;
+      } catch (err) {
+        console.error('Errore salvataggio contatore:', err);
+        alert('Errore: ' + err.message);
+        return false;
+      }
+    }
+
+    async function eliminaContatoreSupabase(id) {
+      if (!supabase) return false;
+      
+      try {
+        const { error } = await supabase.from('contatori').delete().eq('id', id);
+        if (error) throw error;
+        
+        await caricaDatiDaSupabase();
+        return true;
+      } catch (err) {
+        console.error('Errore eliminazione contatore:', err);
+        return false;
+      }
+    }
+
+    async function eliminaTuttiConsumiSupabase() {
+      if (!supabase) return false;
+      
+      try {
+        // Elimina tutti gli allegati
+        await supabase.from('allegati').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        // Elimina tutti i consumi
+        await supabase.from('consumi').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        
+        await caricaDatiDaSupabase();
+        return true;
+      } catch (err) {
+        console.error('Errore eliminazione:', err);
+        return false;
+      }
+    }
+
+    /* ===========================
+       DATI LOCALI
+       =========================== */
+
+    function caricaDatiLocali() {
+      const f = localStorage.getItem('cm_forniture_v1');
+      const c = localStorage.getItem('cm_contatori_v1');
+      const cs = localStorage.getItem('cm_consumi_v1');
+
+      if (f) forniture = JSON.parse(f);
+      else {
+        forniture = { energia: { nome: 'Energia Elettrica', attiva: true }, gas: { nome: 'Gas', attiva: true }, acqua: { nome: 'Acqua', attiva: true } };
+        localStorage.setItem('cm_forniture_v1', JSON.stringify(forniture));
+      }
+
+      contatoriLS = c ? JSON.parse(c) : [
+        { id: 1, nome: 'Casa principale', codice: 'EN001', fornitura: 'energia', ubicazione: 'Abitazione', stato: 'attivo' },
+        { id: 2, nome: 'Riscaldamento', codice: 'GS001', fornitura: 'gas', ubicazione: 'Caldaia', stato: 'attivo' },
+        { id: 3, nome: 'Contatore acqua', codice: 'AQ001', fornitura: 'acqua', ubicazione: 'Generale', stato: 'attivo' }
+      ];
+      if (!c) localStorage.setItem('cm_contatori_v1', JSON.stringify(contatoriLS));
+
+      consumiLS = cs ? JSON.parse(cs) : { energia: [], gas: [], acqua: [] };
+      if (!cs) localStorage.setItem('cm_consumi_v1', JSON.stringify(consumiLS));
+
+      if (!supabase) {
+        contatori = contatoriLS;
+        consumi = consumiLS;
+      }
+    }
+
+    /* ===========================
+       MIGRAZIONE DATI
+       =========================== */
+
+    async function migrateLocalToSupabase() {
+      if (!supabase) {
+        alert('❌ Non connesso a Supabase. Configura prima le credenziali.');
+        return;
+      }
+
+      if (isMigratingData) return;
+      isMigratingData = true;
+
+      const logEl = document.getElementById('migration-log');
+      logEl.innerHTML = '';
+
+      const log = (msg, type = 'info') => {
+        const div = document.createElement('div');
+        div.className = `notification is-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} is-light`;
+        div.textContent = msg;
+        logEl.appendChild(div);
+        console.log(msg);
+      };
+
+      try {
+        log('🚀 Inizio migrazione dati locali...', 'info');
+
+        // Carica dati locali
+        caricaDatiLocali();
+
+        // 1. Migra Forniture
+        log('📦 Migrazione forniture...', 'info');
+        for (const [codice, fornitura] of Object.entries(forniture)) {
+          try {
+            await supabase.from('forniture').insert([{
+              codice,
+              nome: fornitura.nome,
+              attiva: fornitura.attiva
+            }]).select();
+            log(`✅ Fornitura "${codice}" migrata`, 'success');
+          } catch (e) {
+            if (e.message.includes('duplicate')) {
+              log(`⚠️ Fornitura "${codice}" già esistente`, 'info');
+            } else {
+              throw e;
+            }
+          }
+        }
+
+        // 2. Migra Contatori
+        log('📊 Migrazione contatori...', 'info');
+        const contatoriMap = new Map();
+
+        for (const contatore of contatoriLS) {
+          try {
+            const { data, error } = await supabase.from('contatori').insert([{
+              nome: contatore.nome,
+              codice: contatore.codice,
+              fornitura: contatore.fornitura,
+              ubicazione: contatore.ubicazione || '',
+              stato: contatore.stato || 'attivo'
+            }]).select();
+
+            if (error) throw error;
+            contatoriMap.set(contatore.id, data[0].id);
+            log(`✅ Contatore "${contatore.codice}" migrato`, 'success');
+          } catch (e) {
+            if (e.message.includes('duplicate')) {
+              const { data } = await supabase.from('contatori').select('id').eq('codice', contatore.codice);
+              if (data?.length) {
+                contatoriMap.set(contatore.id, data[0].id);
+                log(`⚠️ Contatore "${contatore.codice}" già esistente`, 'info');
+              }
+            } else {
+              throw e;
+            }
+          }
+        }
+
+        // 3. Migra Consumi
+        log('💡 Migrazione consumi e allegati...', 'info');
+        let consumiCount = 0;
+        let allegatiCount = 0;
+
+        for (const [tipo, lista] of Object.entries(consumiLS)) {
+          for (const consumo of lista) {
+            const newContatoreId = contatoriMap.get(consumo.contatoreId);
+            if (!newContatoreId) continue;
+
+            try {
+              const consumoData = {
+                tipo,
+                contatore_id: newContatoreId,
+                mese: consumo.mese,
+                consumo: consumo.consumo,
+                importo: consumo.importo || 0
+              };
+
+              if (tipo === 'gas') {
+                consumoData.consumo_originale = consumo.consumoOriginale;
+                consumoData.tipo_origine = consumo.tipoOrigine;
+              }
+
+              const { data, error } = await supabase.from('consumi').insert([consumoData]).select();
+              if (error) throw error;
+
+              consumiCount++;
+              const newConsumoId = data[0].id;
+
+              // Migra allegati
+              if (consumo.allegati && consumo.allegati.length > 0) {
+                for (const allegato of consumo.allegati) {
+                  await supabase.from('allegati').insert([{
+                    consumo_id: newConsumoId,
+                    nome: allegato.name,
+                    tipo_file: allegato.type,
+                    data: allegato.data
+                  }]);
+                  allegatiCount++;
+                }
+              }
+            } catch (e) {
+              if (!e.message.includes('duplicate')) {
+                console.warn('Errore consumo:', e);
+              }
+            }
+          }
+        }
+
+        log(`✅ ${consumiCount} consumi migrati`, 'success');
+        log(`✅ ${allegatiCount} allegati migrati`, 'success');
+
+        // Ricarica dati
+        await caricaDatiDaSupabase();
+
+        log('🎉 MIGRAZIONE COMPLETATA CON SUCCESSO!', 'success');
+        alert('✅ Migrazione completata! I tuoi dati sono ora nel cloud.');
+      } catch (err) {
+        log(`❌ ERRORE: ${err.message}`, 'error');
+        console.error(err);
+      } finally {
+        isMigratingData = false;
+      }
+    }
+
+    function checkLocalDataStatus() {
+      caricaDatiLocali();
+      const statusEl = document.getElementById('local-data-status');
+      
+      const fornitureCount = Object.keys(forniture).length;
+      const contatoriCount = contatoriLS.length;
+      const consumiCount = Object.values(consumiLS).reduce((sum, arr) => sum + arr.length, 0);
+      const allegatiCount = Object.values(consumiLS).reduce((sum, arr) => 
+        sum + arr.reduce((s, c) => s + (c.allegati?.length || 0), 0), 0);
+
+      statusEl.innerHTML = `
+        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px;">
+          <div style="padding:12px; background:#f0fdf4; border-radius:6px; border-left:4px solid #10b981;">
+            <p class="small-muted">📋 Forniture</p>
+            <p style="font-size:1.5rem; font-weight:bold; color:#10b981;">${fornitureCount}</p>
+          </div>
+          <div style="padding:12px; background:#eff6ff; border-radius:6px; border-left:4px solid #3b82f6;">
+            <p class="small-muted">📊 Contatori</p>
+            <p style="font-size:1.5rem; font-weight:bold; color:#3b82f6;">${contatoriCount}</p>
+          </div>
+          <div style="padding:12px; background:#fef3c7; border-radius:6px; border-left:4px solid #f59e0b;">
+            <p class="small-muted">💡 Consumi</p>
+            <p style="font-size:1.5rem; font-weight:bold; color:#f59e0b;">${consumiCount}</p>
+          </div>
+          <div style="padding:12px; background:#fce7f3; border-radius:6px; border-left:4px solid #ec4899;">
+            <p class="small-muted">📎 Allegati</p>
+            <p style="font-size:1.5rem; font-weight:bold; color:#ec4899;">${allegatiCount}</p>
+          </div>
+        </div>
+      `;
+
+      if (consumiCount > 0) {
+        document.getElementById('btn-migrate').disabled = false;
+      }
+    }
+
+    /* ===========================
+       UI & EVENTS
+       =========================== */
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initSupabase();
+      inizializzaTabs();
+      inizializzaPickers();
+      attachEventHandlers();
+      caricaTabelleTutti();
+      
+      const ctx = document.getElementById('chart-consumi')?.getContext('2d');
+      if (ctx) {
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: { labels: [], datasets: []},
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { x: { title: { display: true, text: 'Mese' } }, y: { beginAtZero: true } },
+            plugins: { tooltip: { mode: 'index', intersect: false }, legend: { display: true } }
+          }
+        });
+        aggiornaGrafico();
+      }
+    });
+
+    function inizializzaTabs() {
+      document.querySelectorAll('#mainTabs li').forEach(li => {
+        li.addEventListener('click', () => {
+          document.querySelectorAll('#mainTabs li').forEach(x => x.classList.remove('is-active'));
+          li.classList.add('is-active');
+          const tab = li.getAttribute('data-tab');
+          document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+          const el = document.getElementById(tab);
+          if (el) el.style.display = 'block';
+        });
+      });
+      document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+      document.getElementById('energia').style.display = 'block';
+    }
+
+    function inizializzaPickers() {
+      const opts = {
+        plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "F Y", theme: "light" })],
+        allowInput: true
+      };
+      ['mese-energia', 'mese-gas', 'mese-acqua', 'filtro-inizio-energia', 'filtro-fine-energia', 
+       'filtro-inizio-gas', 'filtro-fine-gas', 'filtro-inizio-acqua', 'filtro-fine-acqua',
+       'filtro-inizio-stat', 'filtro-fine-stat'].forEach(id => {
+        if (document.getElementById(id)) flatpickr(`#${id}`, opts);
+      });
+    }
+
+    function attachEventHandlers() {
+      document.getElementById('btn-open-config').addEventListener('click', () => {
+        document.getElementById('modal-config').classList.add('is-active');
+        document.querySelectorAll('[data-config-tab]').forEach(x => x.parentElement.classList.remove('is-active'));
+        document.querySelector('[data-config-tab="supabase"]').parentElement.classList.add('is-active');
+        document.querySelectorAll('.config-tab').forEach(p => p.style.display = 'none');
+        document.getElementById('config-supabase').style.display = '';
+        checkLocalDataStatus();
+      });
+
+      document.getElementById('close-config').addEventListener('click', () => {
+        document.getElementById('modal-config').classList.remove('is-active');
+      });
+
+      document.getElementById('close-config-2').addEventListener('click', () => {
+        document.getElementById('modal-config').classList.remove('is-active');
+      });
+
+      document.querySelectorAll('[data-config-tab]').forEach(li => {
+        li.addEventListener('click', () => {
+          document.querySelectorAll('[data-config-tab]').forEach(x => x.parentElement.classList.remove('is-active'));
+          li.parentElement.classList.add('is-active');
+          const tabName = li.getAttribute('data-config-tab');
+          document.querySelectorAll('.config-tab').forEach(p => p.style.display = 'none');
+          document.getElementById('config-' + tabName).style.display = '';
+          if (tabName === 'migrazione') checkLocalDataStatus();
+        });
+      });
+
+      // Supabase Setup
+      document.getElementById('btn-save-supabase').addEventListener('click', saveSupabaseConfig);
+      document.getElementById('btn-test-connection').addEventListener('click', testConnection);
+      document.getElementById('btn-migrate').addEventListener('click', migrateLocalToSupabase);
+
+      // JSON Export/Import
+      document.getElementById('btn-export-json').addEventListener('click', esportaDatiJSON);
+      document.getElementById('btn-import-json-trigger').addEventListener('click', () => document.getElementById('file-import-json').click());
+      document.getElementById('file-import-json').addEventListener('change', importaDatiJSON);
+
+      // Export / Import Excel
+      document.getElementById('btn-export-xlsx').addEventListener('click', esportaDatiXLSX);
+      document.getElementById('btn-import-xlsx').addEventListener('click', () => document.getElementById('file-import').click());
+      document.getElementById('file-import').addEventListener('change', handleImportFile);
+
+      // PDF
+      document.getElementById('btn-export-pdf').addEventListener('click', () => document.getElementById('modal-pdf').classList.add('is-active'));
+      document.getElementById('close-pdf-modal').addEventListener('click', () => document.getElementById('modal-pdf').classList.remove('is-active'));
+      document.getElementById('btn-genera-pdf').addEventListener('click', esportaStatistichePDF);
+
+      // Contatori
+      document.getElementById('btn-salva-contatore').addEventListener('click', salvaContatoreHandler);
+      document.getElementById('btn-annu-modifica-contatore').addEventListener('click', resetFormContatore);
+      document.getElementById('btn-open-contatori').addEventListener('click', openConfigContatori);
+      document.getElementById('btn-open-contatori-2').addEventListener('click', openConfigContatori);
+      document.getElementById('btn-open-contatori-3').addEventListener('click', openConfigContatori);
+
+      // SharePoint
+      document.getElementById('btn-salva-sharepoint').addEventListener('click', salvaPercorsoSharepoint);
+
+      // Eliminazione dati
+      document.getElementById('btn-elimina-tutti-consumi').addEventListener('click', eliminareTuttiConsumi);
+
+      // Toggles statistiche
+      ['toggle-energia', 'toggle-gas', 'toggle-acqua'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+          popolaStatContatoriCheckboxes();
+          aggiornaGrafico();
+        });
+      });
+    }
+
+    function openConfigContatori() {
+      document.getElementById('modal-config').classList.add('is-active');
+      document.querySelectorAll('[data-config-tab]').forEach(x => x.parentElement.classList.remove('is-active'));
+      document.querySelector('[data-config-tab="contatori"]').parentElement.classList.add('is-active');
+      document.querySelectorAll('.config-tab').forEach(p => p.style.display = 'none');
+      document.getElementById('config-contatori').style.display = '';
+      popolaConfigContatori();
+    }
+
+    async function saveSupabaseConfig() {
+      const url = document.getElementById('supabase-url').value.trim();
+      const key = document.getElementById('supabase-key').value.trim();
+
+      if (!url || !key) {
+        alert('❌ Inserisci URL e chiave');
+        return;
+      }
+
+      localStorage.setItem('cm_supabase_url', url);
+      localStorage.setItem('cm_supabase_key', key);
+
+      alert('✅ Configurazione salvata. Ricarica la pagina per connetterti.');
+      location.reload();
+    }
+
+    async function testConnection() {
+      const url = document.getElementById('supabase-url').value.trim();
+      const key = document.getElementById('supabase-key').value.trim();
+
+      if (!url || !key) {
+        alert('❌ Inserisci URL e chiave prima');
+        return;
+      }
+
+      try {
+        const { createClient } = window.supabase;
+        const client = createClient(url, key);
+        const { data, error } = await client.from('contatori').select('count', { count: 'exact' });
+
+        if (error) throw error;
+
+        document.getElementById('connection-status').innerHTML = `
+          <div class="notification is-success is-light">
+            <p>✅ Connessione riuscita! Database pronto.</p>
+          </div>
+        `;
+      } catch (err) {
+        document.getElementById('connection-status').innerHTML = `
+          <div class="notification is-danger is-light">
+            <p>❌ Errore: ${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    function toggleSQL() {
+      const container = document.getElementById('sql-container');
+      container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function copySQL() {
+      const script = document.getElementById('sql-script').textContent;
+      navigator.clipboard.writeText(script).then(() => {
+        alert('✅ SQL copiato negli appunti!');
+      });
+    }
+
+    function popolaConfigContatori() {
+      const lista = document.getElementById('lista-contatori-config');
+      if (lista) {
+        lista.innerHTML = '';
+        contatori.forEach(c => {
+          const div = document.createElement('div');
+          div.style.padding = '8px';
+          div.style.marginBottom = '8px';
+          div.style.borderRadius = '4px';
+          div.style.background = '#f3f4f6';
+          div.innerHTML = `
+            <strong>${c.nome}</strong> (${c.codice})<br>
+            <span class="small-muted">${c.ubicazione || '-'}</span><br>
+            <button class="button is-small is-light" onclick="modificaContatoreHandler(${c.id})" style="margin-top:4px;">Modifica</button>
+            <button class="button is-small is-danger is-light" onclick="eliminaContatoreHandler(${c.id})" style="margin-top:4px;">Elimina</button>
+          `;
+          lista.appendChild(div);
+        });
+      }
+
+      // Popola filtri
+      ['energia', 'gas', 'acqua'].forEach(tipo => {
+        const select = document.getElementById(`filtro-contatore-${tipo}`);
+        if (select) {
+          const current = select.value;
+          select.innerHTML = '<option value="">Tutti i contatori</option>';
+          contatori.filter(c => c.fornitura === tipo && c.stato === 'attivo').forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = `${c.nome} (${c.codice})`;
+            select.appendChild(opt);
+          });
+          select.value = current;
+        }
+      });
+    }
+
+    function popolaContatoriSelects() {
+      const byType = { energia: [], gas: [], acqua: [] };
+      contatori.forEach(c => {
+        if (!byType[c.fornitura]) byType[c.fornitura] = [];
+        byType[c.fornitura].push(c);
+      });
+
+      ['energia', 'gas', 'acqua'].forEach(tipo => {
+        const sel = document.getElementById(`contatore-select-${tipo}`);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">Seleziona contatore...</option>';
+        byType[tipo]?.filter(c => c.stato === 'attivo').forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = `${c.nome} (${c.codice})`;
+          sel.appendChild(opt);
+        });
+      });
+
+      popolaConfigContatori();
+    }
+
+    function modificaContatoreHandler(id) {
+      const c = contatori.find(x => x.id === id);
+      if (!c) return;
+      contatoreInModifica = id;
+      document.getElementById('contatore-nome').value = c.nome;
+      document.getElementById('contatore-codice').value = c.codice;
+      document.getElementById('contatore-fornitura').value = c.fornitura;
+      document.getElementById('contatore-ubicazione').value = c.ubicazione || '';
+      document.getElementById('contatore-stato').value = c.stato || 'attivo';
+      document.getElementById('btn-annu-modifica-contatore').style.display = '';
+    }
+
+    async function eliminaContatoreHandler(id) {
+      if (!confirm('Eliminare contatore?')) return;
+      if (supabase) {
+        await eliminaContatoreSupabase(id);
+      } else {
+        contatori = contatori.filter(c => c.id !== id);
+      }
+      contatoreInModifica = null;
+      resetFormContatore();
+      popolaContatoriSelects();
+    }
+
+    async function salvaContatoreHandler() {
+      const nome = document.getElementById('contatore-nome').value.trim();
+      const codice = document.getElementById('contatore-codice').value.trim();
+      const fornitura = document.getElementById('contatore-fornitura').value;
+      const ubicazione = document.getElementById('contatore-ubicazione').value.trim();
+      const stato = document.getElementById('contatore-stato').value;
+
+      if (!nome || !codice || !fornitura) {
+        alert('Compila i campi obbligatori');
+        return;
+      }
+
+      if (supabase) {
+        await salvaContatoreSupabase(nome, codice, fornitura, ubicazione, stato, contatoreInModifica);
+      } else {
+        if (contatoreInModifica) {
+          const idx = contatori.findIndex(c => c.id === contatoreInModifica);
+          contatori[idx] = { id: contatoreInModifica, nome, codice, fornitura, ubicazione, stato };
+        } else {
+          const nuovoId = Math.max(0, ...contatori.map(c => c.id)) + 1;
+          contatori.push({ id: nuovoId, nome, codice, fornitura, ubicazione, stato });
+        }
+      }
+
+      contatoreInModifica = null;
+      resetFormContatore();
+      popolaContatoriSelects();
+    }
+
+    function resetFormContatore() {
+      document.getElementById('contatore-nome').value = '';
+      document.getElementById('contatore-codice').value = '';
+      document.getElementById('contatore-ubicazione').value = '';
+      document.getElementById('contatore-stato').value = 'attivo';
+      document.getElementById('btn-annu-modifica-contatore').style.display = 'none';
+      contatoreInModifica = null;
+    }
+
+    async function aggiungiConsumo(tipo) {
+      const contatoreId = parseInt(document.getElementById(`contatore-select-${tipo}`).value || 0);
+      const mese = document.getElementById(`mese-${tipo}`).value;
+      const importo = parseFloat(document.getElementById(`importo-${tipo}`).value || 0);
+
+      if (!contatoreId) {
+        alert('Seleziona un contatore');
+        return;
+      }
+      if (!mese) {
+        alert('Seleziona mese e anno');
+        return;
+      }
+
+      if (tipo === 'gas') {
+        const tipoGas = document.getElementById('tipo-gas').value;
+        const val = parseFloat(document.getElementById('consumo-gas').value || 0);
+        if (isNaN(val) || val <= 0) {
+          alert('Inserisci consumo');
+          return;
+        }
+
+        let consumoKwh = val;
+        let consumoOriginale = null;
+        if (tipoGas === 'm3') {
+          consumoOriginale = val;
+          consumoKwh = val * 10.69;
+        } else if (tipoGas === 'litri') {
+          consumoOriginale = val;
+          consumoKwh = val * 6.6;
+        }
+
+        if (supabase) {
+          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoKwh, importo, consumoOriginale, tipoGas);
+        } else {
+          consumi.gas.push({
+            id: Date.now() + Math.random(),
+            contatoreId,
+            mese,
+            consumo: consumoKwh,
+            consumoOriginale,
+            tipoOrigine: tipoGas,
+            importo,
+            allegati: []
+          });
+        }
+      } else {
+        const consumoVal = parseFloat(document.getElementById(`consumo-${tipo}`).value || 0);
+        if (isNaN(consumoVal) || consumoVal <= 0) {
+          alert('Inserisci consumo');
+          return;
+        }
+
+        if (supabase) {
+          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoVal, importo);
+        } else {
+          consumi[tipo].push({
+            id: Date.now() + Math.random(),
+            contatoreId,
+            mese,
+            consumo: consumoVal,
+            importo,
+            allegati: []
+          });
+        }
+      }
+
+      document.getElementById(`contatore-select-${tipo}`).value = '';
+      document.getElementById(`mese-${tipo}`).value = '';
+      document.getElementById(`consumo-${tipo}`).value = '';
+      document.getElementById(`importo-${tipo}`).value = '';
+
+      caricaTabelleTutti();
+      aggiornaGrafico();
+    }
+
+    async function eliminaConsumo(tipo, id) {
+      if (!confirm('Eliminare il consumo?')) return;
+
+      if (supabase) {
+        await eliminaConsumoSupabase(id);
+      } else {
+        consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
+      }
+
+      caricaTabelleTutti();
+      aggiornaGrafico();
+    }
+
+    function caricaTabelleTutti() {
+      ['energia', 'gas', 'acqua'].forEach(tipo => caricaTabella(tipo));
+    }
+
+    function caricaTabella(tipo) {
+      const tbody = document.getElementById(`tabella-${tipo}`);
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      let rows = consumi[tipo] || [];
+      const start = document.getElementById(`filtro-inizio-${tipo}`)?.value;
+      const end = document.getElementById(`filtro-fine-${tipo}`)?.value;
+
+      if (start || end) {
+        rows = rows.filter(r => {
+          if (start && r.mese < start) return false;
+          if (end && r.mese > end) return false;
+          return true;
+        });
+      }
+
+      const filtroContatoreId = document.getElementById(`filtro-contatore-${tipo}`)?.value;
+      if (filtroContatoreId) {
+        rows = rows.filter(r => String(r.contatore_id || r.contatoreId) === filtroContatoreId);
+      }
+
+      rows = rows.sort((a, b) => b.mese.localeCompare(a.mese));
+
+      // Recupera URL SharePoint
+      const sharepointUrl = localStorage.getItem('cm_sharepoint_path_v1');
+
+      rows.forEach(r => {
+        const contId = r.contatore_id || r.contatoreId;
+        const cont = contatori.find(c => c.id === contId) || { nome: '–', codice: '–' };
+        const tr = document.createElement('tr');
+
+        let sharepointBtn = '';
+        if (sharepointUrl) {
+           sharepointBtn = `<a href="${sharepointUrl}" target="_blank" class="button is-info is-light" title="Apri SharePoint">📂</a>`;
+        }
+
+        const actionsHtml = `
+          <div class="buttons are-small is-flex-wrap-nowrap">
+            ${sharepointBtn}
+            <button class="button is-danger is-light" onclick="eliminaConsumo('${tipo}', '${r.id}')">Elimina</button>
+          </div>`;
+
+        if (tipo === 'gas') {
+          tr.innerHTML = `<td>${formatMese(r.mese)}</td><td>${cont.nome} (${cont.codice})</td><td>${(r.consumo_originale ?? r.consumo).toFixed(2)} ${r.tipo_origine ?? 'kWh'}</td><td>${(r.consumo).toFixed(2)} kWh</td><td>€${(r.importo||0).toFixed(2)}</td><td>${actionsHtml}</td>`;
+        } else {
+          const unita = tipo === 'energia' ? 'kWh' : 'm³';
+          tr.innerHTML = `<td>${formatMese(r.mese)}</td><td>${cont.nome} (${cont.codice})</td><td>${(r.consumo).toFixed(2)} ${unita}</td><td>€${(r.importo||0).toFixed(2)}</td><td>${actionsHtml}</td>`;
+        }
+        tbody.appendChild(tr);
+      });
+    }
+
+    function formatMese(ym) {
+      if (!ym) return '-';
+      const [y, m] = String(ym).split('-');
+      const date = new Date(y, parseInt(m, 10) - 1, 1);
+      return date.toLocaleString('it-IT', { month: 'short', year: 'numeric' });
+    }
+
+    function applicaFiltro(tipo) {
+      caricaTabella(tipo);
+    }
+
+    function resetFiltro(tipo) {
+      document.getElementById(`filtro-inizio-${tipo}`).value = '';
+      document.getElementById(`filtro-fine-${tipo}`).value = '';
+      const select = document.getElementById(`filtro-contatore-${tipo}`);
+      if (select) select.value = '';
+      caricaTabella(tipo);
+    }
+
+    function applicaFiltroStat() {
+      aggiornaGrafico();
+    }
+
+    function resetFiltroStat() {
+      document.getElementById('filtro-inizio-stat').value = '';
+      document.getElementById('filtro-fine-stat').value = '';
+      selectedStatCounters.clear();
+      popolaStatContatoriCheckboxes();
+      aggiornaGrafico();
+    }
+
+    function popolaStatContatoriCheckboxes() {
+      const container = document.getElementById('filtro-contatori-stat-checkboxes');
+      if (!container) return;
+
+      container.innerHTML = '';
+
+      const visibleTypes = {
+        energia: document.getElementById('toggle-energia').checked,
+        gas: document.getElementById('toggle-gas').checked,
+        acqua: document.getElementById('toggle-acqua').checked,
+      };
+
+      const availableCounters = contatori.filter(c => c.stato === 'attivo' && visibleTypes[c.fornitura]);
+
+      if (availableCounters.length === 0) {
+        container.innerHTML = '<p class="small-muted">Nessun contatore disponibile</p>';
+        return;
+      }
+
+      const grouped = {};
+      availableCounters.forEach(c => {
+        if (!grouped[c.fornitura]) grouped[c.fornitura] = [];
+        grouped[c.fornitura].push(c);
+      });
+
+      Object.keys(grouped).sort().forEach(tipo => {
+        const div = document.createElement('div');
+        div.style.marginBottom = '12px';
+        div.innerHTML = `<p style="font-weight:600; margin-bottom:6px;">${tipo.charAt(0).toUpperCase() + tipo.slice(1)}</p>`;
+
+        grouped[tipo].forEach(c => {
+          const label = document.createElement('label');
+          label.className = 'checkbox';
+          label.style.display = 'block';
+          label.style.marginBottom = '4px';
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.checked = selectedStatCounters.has(c.id);
+          input.addEventListener('change', (e) => {
+            if (e.target.checked) selectedStatCounters.add(c.id);
+            else selectedStatCounters.delete(c.id);
+            aggiornaGrafico();
+          });
+          label.appendChild(input);
+          label.appendChild(document.createTextNode(` ${c.nome} (${c.codice})`));
+          div.appendChild(label);
+        });
+
+        container.appendChild(div);
+      });
+    }
+
+    let chartInstance = null;
+
+    function getCounterColor(counterId) {
+      if (!chartColorMap.has(counterId)) {
+        chartColorMap.set(counterId, CHART_COLORS_PALETTE[chartColorMap.size % CHART_COLORS_PALETTE.length]);
+      }
+      return chartColorMap.get(counterId);
+    }
+
+    function aggiornaGrafico() {
+      if (!chartInstance) return;
+
+      const start = document.getElementById('filtro-inizio-stat').value;
+      const end = document.getElementById('filtro-fine-stat').value;
+      const labels = generaEtichetteIntervallo(start, end);
+
+      const visibleTypes = {
+        energia: document.getElementById('toggle-energia').checked,
+        gas: document.getElementById('toggle-gas').checked,
+        acqua: document.getElementById('toggle-acqua').checked,
+      };
+
+      const selectedCounterIds = Array.from(selectedStatCounters);
+      const monthlyData = new Map();
+
+      ['energia', 'gas', 'acqua'].forEach(type => {
+        if (!visibleTypes[type]) return;
+
+        consumi[type]?.forEach(r => {
+          const contId = r.contatore_id || r.contatoreId;
+          const cont = contatori.find(c => c.id === contId);
+          if (!cont || cont.stato !== 'attivo') return;
+          if (selectedCounterIds.length > 0 && !selectedCounterIds.includes(cont.id)) return;
+
+          if (!monthlyData.has(cont.id)) monthlyData.set(cont.id, new Map());
+          const counterData = monthlyData.get(cont.id);
+          counterData.set(r.mese, (counterData.get(r.mese) || 0) + (r.consumo || 0));
+        });
+      });
+
+      const datasets = [];
+      const sortedCounters = contatori
+        .filter(c => c.stato === 'attivo' && visibleTypes[c.fornitura])
+        .sort((a, b) => {
+          const order = ['energia', 'gas', 'acqua'];
+          return order.indexOf(a.fornitura) - order.indexOf(b.fornitura) || a.nome.localeCompare(b.nome);
+        });
+
+      sortedCounters.forEach(cont => {
+        if (selectedCounterIds.length > 0 && !selectedCounterIds.includes(cont.id)) return;
+
+        const data = labels.map(label => monthlyData.get(cont.id)?.get(label) || 0);
+        const color = getCounterColor(cont.id);
+        datasets.push({
+          label: `${cont.nome} (${cont.codice})`,
+          data,
+          backgroundColor: color,
+          borderColor: color,
+          borderWidth: 2,
+          fill: false,
+          tension: 0.1
+        });
+      });
+
+      chartInstance.data.labels = labels.map(l => formatMese(l));
+      chartInstance.data.datasets = datasets;
+      chartInstance.update();
+    }
+
+    function generaEtichetteIntervallo(start, end) {
+      if (!start && !end) {
+        const out = [];
+        const oggi = new Date();
+        for (let i = 11; i >= 0; i--) {
+          const d = new Date(oggi.getFullYear(), oggi.getMonth() - i, 1);
+          out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+        return out;
+      }
+
+      const allMesi = Object.values(consumi).flat().map(c => c.mese).filter(Boolean).sort();
+      const startYM = start || allMesi[0] || new Date().toISOString().slice(0, 7);
+      const endYM = end || allMesi[allMesi.length - 1] || new Date().toISOString().slice(0, 7);
+
+      const out = [];
+      const [startYear, startMonth] = startYM.split('-').map(Number);
+      const [endYear, endMonth] = endYM.split('-').map(Number);
+      let d = new Date(startYear, startMonth - 1, 1);
+
+      while (d.getFullYear() < endYear || (d.getFullYear() === endYear && d.getMonth() <= endMonth - 1)) {
+        out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+        d.setMonth(d.getMonth() + 1);
+      }
+
+      return out;
+    }
+
+    async function eliminareTuttiConsumi() {
+      if (!confirm('Sei sicuro? Questa azione è irreversibile.')) return;
+
+      if (supabase) {
+        await eliminaTuttiConsumiSupabase();
+      } else {
+        consumi = { energia: [], gas: [], acqua: [] };
+      }
+
+      selectedStatCounters.clear();
+      caricaTabelleTutti();
+      aggiornaGrafico();
+      alert('✅ Tutti i consumi eliminati');
+    }
+
+    function salvaPercorsoSharepoint() {
+      const path = document.getElementById('sharepoint-path').value.trim();
+      localStorage.setItem('cm_sharepoint_path_v1', path);
+      alert('✅ Percorso SharePoint salvato. Il pulsante apparirà ora nella tabella.');
+      caricaTabelleTutti();
+    }
+
+    /* ===========================
+       EXPORT / IMPORT JSON
+       =========================== */
+
+    function esportaDatiJSON() {
+      // Raccogli tutti i dati attuali
+      const exportData = {
+        timestamp: new Date().toISOString(),
+        forniture: forniture,
+        contatori: contatori,
+        consumi: consumi,
+        configurazioni: {
+          sharepoint_path: localStorage.getItem('cm_sharepoint_path_v1')
+        },
+        version: 2
+      };
+      
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `consumi-manager-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    async function importaDatiJSON(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const json = JSON.parse(text);
+
+        if (!json.contatori || !json.consumi) {
+          alert('❌ File JSON non valido: formato errato.');
+          return;
+        }
+
+        if (confirm('⚠️ ATTENZIONE: Importando questo file sovrascriverai i dati locali attuali. Vuoi procedere?')) {
+          // Aggiorna variabili locali
+          contatori = json.contatori;
+          consumi = json.consumi;
+          if (json.forniture) forniture = json.forniture;
+          
+          // Aggiorna LocalStorage
+          localStorage.setItem('cm_contatori_v1', JSON.stringify(contatori));
+          localStorage.setItem('cm_consumi_v1', JSON.stringify(consumi));
+          localStorage.setItem('cm_forniture_v1', JSON.stringify(forniture));
+          
+          if (json.configurazioni && json.configurazioni.sharepoint_path) {
+            localStorage.setItem('cm_sharepoint_path_v1', json.configurazioni.sharepoint_path);
+            document.getElementById('sharepoint-path').value = json.configurazioni.sharepoint_path;
+          }
+
+          // Refresh UI
+          popolaContatoriSelects();
+          caricaTabelleTutti();
+          aggiornaGrafico();
+
+          alert('✅ Dati importati con successo!');
+
+          // Se connesso a Supabase, suggerisci migrazione
+          if (supabase) {
+            alert('ℹ️ Nota: Hai importato i dati localmente. Per sincronizzarli sul cloud, vai in Configurazioni > Migrazione.');
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        alert('❌ Errore durante l\'importazione: ' + err.message);
+      }
+      
+      // Reset input
+      e.target.value = '';
+    }
+
+    /* ===========================
+       EXPORT / IMPORT EXCEL
+       =========================== */
+
+    function esportaDatiXLSX() {
+      const wb = XLSX.utils.book_new();
+
+      const riass = [['Tipo', 'Consumo totale', 'Spesa totale (€)']];
+      riass.push(['Energia', consumi.energia.reduce((s, c) => s + (c.consumo || 0), 0).toFixed(2) + ' kWh', consumi.energia.reduce((s, c) => s + (c.importo || 0), 0).toFixed(2)]);
+      riass.push(['Gas', consumi.gas.reduce((s, c) => s + (c.consumo || 0), 0).toFixed(2) + ' kWh', consumi.gas.reduce((s, c) => s + (c.importo || 0), 0).toFixed(2)]);
+      riass.push(['Acqua', consumi.acqua.reduce((s, c) => s + (c.consumo || 0), 0).toFixed(2) + ' m³', consumi.acqua.reduce((s, c) => s + (c.importo || 0), 0).toFixed(2)]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(riass), 'Riassunto');
+
+      ['energia', 'gas', 'acqua'].forEach(tipo => {
+        const header = ['Mese', 'Contatore', 'Consumo', 'Unità', 'Importo'];
+        const dati = [header];
+
+        consumi[tipo].forEach(r => {
+          const cont = contatori.find(c => c.id === (r.contatore_id || r.contatoreId)) || { nome: '-', codice: '-' };
+          let consumo = r.consumo;
+          let unita = tipo === 'energia' ? 'kWh' : tipo === 'acqua' ? 'm³' : 'kWh';
+
+          if (tipo === 'gas' && r.consumo_originale) {
+            consumo = r.consumo_originale;
+            unita = r.tipo_origine || 'kWh';
+          }
+
+          dati.push([
+            r.mese || '',
+            `${cont.nome} (${cont.codice})`,
+            consumo.toFixed(2),
+            unita,
+            (r.importo || 0).toFixed(2)
+          ]);
+        });
+
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(dati), tipo.charAt(0).toUpperCase() + tipo.slice(1));
+      });
+
+      XLSX.writeFile(wb, `consumi_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    async function handleImportFile(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array' });
+        const sheets = wb.SheetNames.filter(n => ['Energia', 'Gas', 'Acqua'].includes(n));
+
+        if (sheets.length === 0) {
+          alert('File non valido');
+          return;
+        }
+
+        let importati = 0;
+
+        for (const name of sheets) {
+          const sheet = wb.Sheets[name];
+          const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+          if (!rows || rows.length < 2) continue;
+
+          const tipo = name.toLowerCase();
+          const data = rows.slice(1);
+
+          for (const row of data) {
+            const mese = (row[0] || '').substring(0, 7);
+            const contatoreName = row[1] || '';
+            const consumo = parseFloat((row[2] || '').toString().replace(',', '.'));
+            const importo = parseFloat((row[4] || '').toString().replace(',', '.')) || 0;
+
+            if (!mese || isNaN(consumo) || consumo <= 0) continue;
+
+            const cont = contatori.find(c => c.nome === contatoreName || c.codice === contatoreName);
+            if (!cont) continue;
+
+            if (supabase) {
+              if (tipo === 'gas') {
+                await salvaConsumoSupabase(tipo, cont.id, mese, consumo * 10.69, importo, consumo, 'm³');
+              } else {
+                await salvaConsumoSupabase(tipo, cont.id, mese, consumo, importo);
+              }
+            }
+
+            importati++;
+          }
+        }
+
+        alert(`✅ ${importati} righe importate`);
+        caricaTabelleTutti();
+        aggiornaGrafico();
+      } catch (err) {
+        alert('Errore import: ' + err.message);
+      }
+
+      e.target.value = '';
+    }
+
+    function esportaGraficoXLSX() {
+      if (!chartInstance) return;
+      const labels = chartInstance.data.labels;
+      const datasets = chartInstance.data.datasets;
+      let rows = [['Mese', ...datasets.map(ds => ds.label)]];
+
+      labels.forEach((label, i) => {
+        rows.push([label, ...datasets.map(ds => ds.data[i])]);
+      });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Grafico');
+      XLSX.writeFile(wb, `grafico_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function esportaGraficoCSV() {
+      if (!chartInstance) return;
+      const labels = chartInstance.data.labels;
+      const datasets = chartInstance.data.datasets;
+      let csv = ['Mese', ...datasets.map(ds => ds.label)].join(';') + '\n';
+
+      labels.forEach((label, i) => {
+        csv += [label, ...datasets.map(ds => ds.data[i])].join(';') + '\n';
+      });
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `grafico_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function esportaStatistichePDF() {
+      const { jsPDF } = window.jspdf;
+      const orient = document.querySelector('input[name="pdf-orient"]:checked').value === 'l' ? 'landscape' : 'portrait';
+      const doc = new jsPDF({ orientation: orient, format: 'a4' });
+      let y = 10;
+
+      const addTitle = (title, yPos) => {
+        doc.setFontSize(14);
+        doc.text(title, doc.internal.pageSize.getWidth() / 2, yPos, { align: 'center' });
+        return yPos + 10;
+      };
+
+      const addTable = (tipo, yPos) => {
+        const table = document.getElementById(`table-${tipo}`);
+        if (!table) return yPos;
+
+        const head = Array.from(table.querySelector('thead tr').children).map(th => th.textContent).slice(0, -1);
+        const body = Array.from(table.querySelector('tbody').children).map(tr =>
+          Array.from(tr.children).map(td => td.textContent).slice(0, -1)
+        );
+
+        if (yPos + 40 > doc.internal.pageSize.getHeight() - 10) {
+          doc.addPage();
+          yPos = 10;
+        }
+
+        yPos = addTitle(`Consumi ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`, yPos);
+        doc.autoTable({ head: [head], body, startY: yPos });
+        return doc.autoTable.previous.finalY + 10;
+      };
+
+      const sections = Array.from(document.querySelectorAll('#pdf-section-list input:checked')).map(ch => ch.dataset.section);
+
+      sections.forEach((section, index) => {
+        if (index > 0) {
+          doc.addPage();
+          y = 10;
+        }
+
+        if (section === 'chart') {
+          y = addTitle('Grafico consumi', y);
+          const canvas = document.getElementById('chart-consumi');
+          if (canvas) {
+            const imgData = canvas.toDataURL('image/png');
+            const pageW = doc.internal.pageSize.getWidth() - 20;
+            const pageH = doc.internal.pageSize.getHeight() - 20 - y;
+            let imgW = pageW;
+            let imgH = (canvas.height / canvas.width) * imgW;
+            if (imgH > pageH) {
+              imgH = pageH;
+              imgW = (canvas.width / canvas.height) * imgH;
+            }
+            doc.addImage(imgData, 'PNG', 10 + (pageW - imgW) / 2, y + 5, imgW, imgH);
+            y += imgH + 15;
+          }
+        } else {
+          y = addTable(section, y);
+        }
+      });
+
+      doc.save(`statistiche_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.getElementById('modal-pdf').classList.remove('is-active');
+    }
+  </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
