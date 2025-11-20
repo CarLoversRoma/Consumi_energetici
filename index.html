@@ -12,8 +12,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  
+  <!-- Librerie PDF: Usiamo versioni UMD esplicite e compatibili -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <style>
     html,body { background:#f5f7fa; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; height:100%; font-size: 0.9rem; }
@@ -317,8 +319,6 @@
             </div>
             <div style="margin-top:12px;"><div class="chart-wrap"><canvas id="chart-consumi"></canvas></div></div>
             <div style="margin-top:12px; display:flex; gap:8px; justify-content:flex-end;">
-              <button class="button is-light is-small" onclick="esportaGraficoXLSX()">Esporta grafico (.xlsx)</button>
-              <button class="button is-light is-small" onclick="esportaGraficoCSV()">Esporta grafico (.csv)</button>
               <button class="button is-light is-small" id="btn-export-pdf">Esporta PDF</button>
             </div>
           </div>
@@ -1931,9 +1931,21 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     }
 
     function esportaStatistichePDF() {
-      const { jsPDF } = window.jspdf;
+      // Tentiamo di recuperare jsPDF in modo robusto (Global o UMD)
+      let jsPDFCtor;
+      if (window.jspdf && window.jspdf.jsPDF) {
+         jsPDFCtor = window.jspdf.jsPDF;
+      } else if (window.jsPDF) {
+         jsPDFCtor = window.jsPDF;
+      }
+
+      if (!jsPDFCtor) {
+         alert('Errore: Libreria PDF non trovata. Assicurati di essere connesso a internet per caricare le risorse CDN.');
+         return;
+      }
+
       const orient = document.querySelector('input[name="pdf-orient"]:checked').value === 'l' ? 'landscape' : 'portrait';
-      const doc = new jsPDF({ orientation: orient, format: 'a4' });
+      const doc = new jsPDFCtor({ orientation: orient, format: 'a4' });
       let y = 10;
 
       const addTitle = (title, yPos) => {
@@ -1942,14 +1954,40 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         return yPos + 10;
       };
 
-      const addTable = (tipo, yPos) => {
-        const table = document.getElementById(`table-${tipo}`);
-        if (!table) return yPos;
+      const addTableFromData = (tipo, yPos) => {
+        const dati = consumi[tipo];
+        if (!dati || dati.length === 0) return yPos;
 
-        const head = Array.from(table.querySelector('thead tr').children).map(th => th.textContent).slice(0, -1);
-        const body = Array.from(table.querySelector('tbody').children).map(tr =>
-          Array.from(tr.children).map(td => td.textContent).slice(0, -1)
-        );
+        const rows = [...dati].sort((a, b) => b.mese.localeCompare(a.mese));
+
+        let head = [];
+        let body = [];
+
+        if (tipo === 'gas') {
+          head = [['Mese', 'Contatore', 'Consumo Orig.', 'Consumo (kWh)', 'Importo']];
+          body = rows.map(r => {
+             const c = contatori.find(x => x.id === (r.contatore_id || r.contatoreId)) || { nome: '-', codice: '-' };
+             return [
+               formatMese(r.mese),
+               `${c.nome} (${c.codice})`,
+               `${(r.consumo_originale ?? r.consumo).toFixed(2)} ${r.tipo_origine ?? 'kWh'}`,
+               `${(r.consumo).toFixed(2)} kWh`,
+               `€${(r.importo||0).toFixed(2)}`
+             ];
+          });
+        } else {
+          const unita = tipo === 'energia' ? 'kWh' : 'm³';
+          head = [['Mese', 'Contatore', `Consumo (${unita})`, 'Importo']];
+          body = rows.map(r => {
+             const c = contatori.find(x => x.id === (r.contatore_id || r.contatoreId)) || { nome: '-', codice: '-' };
+             return [
+               formatMese(r.mese),
+               `${c.nome} (${c.codice})`,
+               `${(r.consumo).toFixed(2)}`,
+               `€${(r.importo||0).toFixed(2)}`
+             ];
+          });
+        }
 
         if (yPos + 40 > doc.internal.pageSize.getHeight() - 10) {
           doc.addPage();
@@ -1957,14 +1995,16 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         }
 
         yPos = addTitle(`Consumi ${tipo.charAt(0).toUpperCase() + tipo.slice(1)}`, yPos);
-        doc.autoTable({ head: [head], body, startY: yPos });
-        return doc.autoTable.previous.finalY + 10;
+        doc.autoTable({ head: head, body: body, startY: yPos });
+        
+        // Usa doc.lastAutoTable per ottenere la posizione Y finale in modo sicuro
+        return (doc.lastAutoTable && doc.lastAutoTable.finalY) ? doc.lastAutoTable.finalY + 10 : yPos + 20;
       };
 
       const sections = Array.from(document.querySelectorAll('#pdf-section-list input:checked')).map(ch => ch.dataset.section);
 
       sections.forEach((section, index) => {
-        if (index > 0) {
+        if (index > 0 && y > 250) { 
           doc.addPage();
           y = 10;
         }
@@ -1973,20 +2013,34 @@ ON CONFLICT (codice) DO NOTHING;</pre>
           y = addTitle('Grafico consumi', y);
           const canvas = document.getElementById('chart-consumi');
           if (canvas) {
-            const imgData = canvas.toDataURL('image/png');
+            // Forza sfondo bianco per il grafico nel PDF
+            const w = canvas.width;
+            const h = canvas.height;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, w, h);
+            
+            const imgData = canvas.toDataURL('image/jpeg', 1.0);
+            ctx.restore();
+
             const pageW = doc.internal.pageSize.getWidth() - 20;
             const pageH = doc.internal.pageSize.getHeight() - 20 - y;
             let imgW = pageW;
-            let imgH = (canvas.height / canvas.width) * imgW;
+            let imgH = (h / w) * imgW;
+            
             if (imgH > pageH) {
               imgH = pageH;
-              imgW = (canvas.width / canvas.height) * imgH;
+              imgW = (w / h) * imgH;
             }
-            doc.addImage(imgData, 'PNG', 10 + (pageW - imgW) / 2, y + 5, imgW, imgH);
+            
+            doc.addImage(imgData, 'JPEG', 10 + (pageW - imgW) / 2, y + 5, imgW, imgH);
             y += imgH + 15;
           }
         } else {
-          y = addTable(section, y);
+          y = addTableFromData(section, y);
         }
       });
 
