@@ -1,0 +1,5 @@
+{
+  "name": "Consumi Manager Cloud",
+  "description": "Web app per la gestione dei consumi energetici domestici con supporto Supabase e SharePoint.",
+  "requestFramePermissions": []
+}
