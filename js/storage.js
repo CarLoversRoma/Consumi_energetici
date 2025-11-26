@@ -68,6 +68,28 @@ function salvaConfigSupabase(url, key) {
   initSupabase();
 }
 
+async function testSupabaseConnection() {
+  if (!supabase) return { success: false, message: "Client Supabase non inizializzato. Salva prima la configurazione." };
+
+  try {
+    // Tenta una query leggera. Se la tabella non esiste, darà errore ma diverso da "Network Error" o 401
+    const { count, error } = await supabase.from('cm_forniture').select('*', { count: 'exact', head: true });
+
+    if (error) {
+      // Se l'errore è "relation does not exist", siamo comunque connessi!
+      if (error.code === '42P01') {
+        return { success: true, message: "Connessione riuscita! (Tabelle non ancora create)" };
+      }
+      // Altri errori (es. 401 Unauthorized, Network Error)
+      return { success: false, message: "Errore connessione: " + error.message };
+    }
+
+    return { success: true, message: "Connessione riuscita! Tabelle trovate." };
+  } catch (e) {
+    return { success: false, message: "Eccezione: " + e.message };
+  }
+}
+
 /* --- SUPABASE SYNC LOGIC --- */
 
 // Genera SQL per creare le tabelle

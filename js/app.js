@@ -661,6 +661,24 @@ function attachEventHandlers() {
         alert('Configurazione Supabase salvata!');
     });
 
+    document.getElementById('btn-test-supabase').addEventListener('click', async () => {
+        const btn = document.getElementById('btn-test-supabase');
+        const originalText = btn.textContent;
+        btn.textContent = 'Test in corso...';
+        btn.disabled = true;
+
+        const result = await testSupabaseConnection();
+
+        btn.textContent = originalText;
+        btn.disabled = false;
+
+        if (result.success) {
+            alert('✅ ' + result.message);
+        } else {
+            alert('❌ ' + result.message);
+        }
+    });
+
     document.getElementById('btn-sync-upload').addEventListener('click', async () => {
         if (!supabase) { alert('Supabase non configurato o non inizializzato.'); return; }
         if (!confirm('Sovrascrivere i dati nel Cloud con quelli Locali?')) return;

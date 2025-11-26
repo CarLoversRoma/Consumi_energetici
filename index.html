@@ -558,129 +558,118 @@
                         </div>
                     </div>
                     <div class="field">
-                        <label class="label">Anon Key</label>
-                        <div class="control">
-                            <input id="supabase-key" class="input" type="password" placeholder="public-anon-key">
-                        </div>
-                    </div>
-                    Questa azione è irreversibile. I contatori e le forniture non verranno eliminati.
-                    </p>
-                    <div class="field">
-                        <div class="control">
-                            <button class="button is-danger" id="btn-elimina-tutti-consumi">Elimina TUTTI i
-                                consumi</button>
-                        </div>
                     </div>
                 </div>
 
-            </section>
-            <footer class="modal-card-foot">
-                <button class="button" id="close-config-2">Chiudi</button>
-            </footer>
-        </div>
-    </div>
+                <input type="file" id="file-import" accept=".xlsx,.xls,.csv" style="display:none;">
 
-    <input type="file" id="file-import" accept=".xlsx,.xls,.csv" style="display:none;">
-
-    <div id="modal-pdf" class="modal">
-        <div class="modal-background"></div>
-        <div class="modal-card">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Esporta PDF</p>
-                <button class="delete" aria-label="close" id="close-pdf-modal"></button>
-            </header>
-            <section class="modal-card-body">
-                <h3 class="title is-6">Sezioni da esportare</h3>
-                <ul id="pdf-section-list" class="pdf-list">
-                    <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="chart" checked>
-                            Grafico</label></li>
-                    <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="energia" checked>
-                            Energia</label></li>
-                    <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="gas" checked>
-                            Gas</label></li>
-                    <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="acqua" checked>
-                            Acqua</label></li>
-                </ul>
-                <p class="small-muted">Trascina gli elementi per riordinare le sezioni.</p>
-                <div style="margin-top: 1 rem;">
-                    <h3 class="title is-6">Impostazioni</h3>
-                    <div class="field">
-                        <label class="label">Orientamento</label>
-                        <div class="control">
-                            <label class="radio"><input type="radio" name="pdf-orient" value="p" checked>
-                                Verticale</label>
-                            <label class="radio"><input type="radio" name="pdf-orient" value="l"> Orizzontale</label>
-                        </div>
-                    </div>
-                    <div class="field">
-                        <label class="label">Formato</label>
-                        <div class="control">
-                            <div class="select"><select id="pdf-format">
-                                    <option value="a4">A4</option>
-                                    <option value="a3">A3</option>
-                                    <option value="letter">Letter</option>
-                                    <option value="legal">Legal</option>
-                                </select></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-            <footer class="modal-card-foot" style="justify-content: flex-end;">
-                <button class="button is-primary" id="btn-genera-pdf">Genera PDF</button>
-            </footer>
-        </div>
-    </div>
-
-    <div id="modal-allegati" class="modal">
-        <div class="modal-background"></div>
-        <div class="modal-card">
-            <header class="modal-card-head">
-                <p class="modal-card-title">Gestione Allegati</p>
-                <button class="delete" aria-label="close" id="close-allegati-modal"></button>
-            </header>
-            <section class="modal-card-body">
-                <div id="sharepoint-link-container"
-                    style="display: none; margin-bottom: 1.5rem; padding: 12px; background-color: #eef2ff; border-radius: 6px; word-break: break-all;">
-                    <p class="small-muted" style="margin-bottom: 4px;"><strong>Percorso SharePoint suggerito:</strong>
-                    </p>
-                    <a id="sharepoint-link" href="#" target="_blank"></a>
-                </div>
-                <h3 class="title is-6">Allegati esistenti</h3>
-                <ul id="allegati-lista">
-                </ul>
-                <p id="no-allegati" class="small-muted" style="display: none;">Nessun allegato presente.</p>
-                <hr>
-                <h3 class="title is-6">Aggiungi nuovo allegato</h3>
-                <div class="field">
-                    <div class="control">
-                        <div class="file has-name is-fullwidth">
-                            <label class="file-label">
-                                <input class="file-input" type="file" id="file-allegato-input">
-                                <span class="file-cta">
-                                    <span class="file-icon">📁</span>
-                                    <span class="file-label">Scegli un file…</span>
-                                </span>
-                                <span class="file-name" id="file-allegato-nome">Nessun file selezionato</span>
-                            </label>
-                        </div>
+                <div id="modal-pdf" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-card">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title">Esporta PDF</p>
+                            <button class="delete" aria-label="close" id="close-pdf-modal"></button>
+                        </header>
+                        <section class="modal-card-body">
+                            <h3 class="title is-6">Sezioni da esportare</h3>
+                            <ul id="pdf-section-list" class="pdf-list">
+                                <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="chart"
+                                            checked>
+                                        Grafico</label></li>
+                                <li draggable="true"><label class="checkbox"><input type="checkbox"
+                                            data-section="energia" checked>
+                                        Energia</label></li>
+                                <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="gas"
+                                            checked>
+                                        Gas</label></li>
+                                <li draggable="true"><label class="checkbox"><input type="checkbox" data-section="acqua"
+                                            checked>
+                                        Acqua</label></li>
+                            </ul>
+                            <p class="small-muted">Trascina gli elementi per riordinare le sezioni.</p>
+                            <div style="margin-top: 1 rem;">
+                                <h3 class="title is-6">Impostazioni</h3>
+                                <div class="field">
+                                    <label class="label">Orientamento</label>
+                                    <div class="control">
+                                        <label class="radio"><input type="radio" name="pdf-orient" value="p" checked>
+                                            Verticale</label>
+                                        <label class="radio"><input type="radio" name="pdf-orient" value="l">
+                                            Orizzontale</label>
+                                    </div>
+                                </div>
+                                <div class="field">
+                                    <label class="label">Formato</label>
+                                    <div class="control">
+                                        <div class="select"><select id="pdf-format">
+                                                <option value="a4">A4</option>
+                                                <option value="a3">A3</option>
+                                                <option value="letter">Letter</option>
+                                                <option value="legal">Legal</option>
+                                            </select></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <footer class="modal-card-foot" style="justify-content: flex-end;">
+                            <button class="button is-primary" id="btn-genera-pdf">Genera PDF</button>
+                        </footer>
                     </div>
                 </div>
-                <p class="small-muted">Nota: i file sono salvati localmente nel browser. Si consiglia di non superare
-                    1-2 MB per file per evitare problemi di performance e di spazio.</p>
-            </section>
-            <footer class="modal-card-foot" style="justify-content: flex-end;">
-                <button class="button" id="close-allegati-modal-2">Chiudi</button>
-            </footer>
-        </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+                <div id="modal-allegati" class="modal">
+                    <div class="modal-background"></div>
+                    <div class="modal-card">
+                        <header class="modal-card-head">
+                            <p class="modal-card-title">Gestione Allegati</p>
+                            <button class="delete" aria-label="close" id="close-allegati-modal"></button>
+                        </header>
+                        <section class="modal-card-body">
+                            <div id="sharepoint-link-container"
+                                style="display: none; margin-bottom: 1.5rem; padding: 12px; background-color: #eef2ff; border-radius: 6px; word-break: break-all;">
+                                <p class="small-muted" style="margin-bottom: 4px;"><strong>Percorso SharePoint
+                                        suggerito:</strong>
+                                </p>
+                                <a id="sharepoint-link" href="#" target="_blank"></a>
+                            </div>
+                            <h3 class="title is-6">Allegati esistenti</h3>
+                            <ul id="allegati-lista">
+                            </ul>
+                            <p id="no-allegati" class="small-muted" style="display: none;">Nessun allegato presente.</p>
+                            <hr>
+                            <h3 class="title is-6">Aggiungi nuovo allegato</h3>
+                            <div class="field">
+                                <div class="control">
+                                    <div class="file has-name is-fullwidth">
+                                        <label class="file-label">
+                                            <input class="file-input" type="file" id="file-allegato-input">
+                                            <span class="file-cta">
+                                                <span class="file-icon">📁</span>
+                                                <span class="file-label">Scegli un file…</span>
+                                            </span>
+                                            <span class="file-name" id="file-allegato-nome">Nessun file
+                                                selezionato</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="small-muted">Nota: i file sono salvati localmente nel browser. Si consiglia di non
+                                superare
+                                1-2 MB per file per evitare problemi di performance e di spazio.</p>
+                        </section>
+                        <footer class="modal-card-foot" style="justify-content: flex-end;">
+                            <button class="button" id="close-allegati-modal-2">Chiudi</button>
+                        </footer>
+                    </div>
+                </div>
 
-    <script src="js/storage.js"></script>
-    <script src="js/charts.js"></script>
-    <script src="js/dashboard.js"></script>
-    <script src="js/app.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+                <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+
+                <script src="js/storage.js"></script>
+                <script src="js/charts.js"></script>
+                <script src="js/dashboard.js"></script>
+                <script src="js/app.js"></script>
 </body>
 
 </html>
