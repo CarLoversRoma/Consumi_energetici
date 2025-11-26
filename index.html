@@ -233,6 +233,158 @@
       font-family: 'Courier New', monospace;
       font-size: 0.85em;
     }
+
+    /* ===== DASHBOARD STYLES ===== */
+    .kpi-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .kpi-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .kpi-card:hover::before {
+      opacity: 1;
+    }
+
+    .kpi-value {
+      font-size: 2.4rem;
+      font-weight: 700;
+      margin: 12px 0 4px 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .kpi-label {
+      font-size: 0.85rem;
+      opacity: 0.95;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .kpi-unit {
+      font-size: 0.9rem;
+      opacity: 0.85;
+      font-weight: 400;
+    }
+
+    .comparison-card {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .trend-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-weight: 600;
+      font-size: 1rem;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      transition: transform 0.2s ease;
+    }
+
+    .trend-indicator:hover {
+      transform: scale(1.05);
+    }
+
+    .trend-up {
+      background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+      color: #991b1b;
+    }
+
+    .trend-down {
+      background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+      color: #065f46;
+    }
+
+    .trend-neutral {
+      background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+      color: #6b7280;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .mini-chart-container {
+      background: white;
+      border: 2px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .comparison-item {
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 12px;
+      border: 1px solid #e5e7eb;
+    }
+
+    .comparison-value-large {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: #111827;
+      margin-top: 8px;
+    }
+
+    .comparison-value-small {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #059669;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 768px) {
+      .dashboard-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      .kpi-value {
+        font-size: 1.8rem;
+      }
+
+      .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
   <link rel="stylesheet" href="/index.css">
 </head>
@@ -267,7 +419,8 @@
     <div class="content-area">
       <div class="tabs is-toggle is-fullwidth">
         <ul id="mainTabs">
-          <li class="is-active" data-tab="energia"><a>Energia</a></li>
+          <li class="is-active" data-tab="dashboard"><a>📊 Dashboard</a></li>
+          <li data-tab="energia"><a>Energia</a></li>
           <li data-tab="gas"><a>Gas</a></li>
           <li data-tab="acqua"><a>Acqua</a></li>
           <li data-tab="statistiche"><a>Statistiche</a></li>
@@ -275,7 +428,66 @@
       </div>
 
       <div id="panels">
-        <section id="energia" class="panel">
+        <!-- ===== DASHBOARD SECTION ===== -->
+        <section id="dashboard" class="panel">
+          <!-- Selettori Tipo Fornitura -->
+          <div
+            style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <h4 class="title is-4" style="margin: 0;">📊 Dashboard Panoramica</h4>
+            <div class="inline-gap">
+              <label class="checkbox"><input id="dash-toggle-energia" type="checkbox" checked
+                  onchange="dashboard_updateAll()"> Energia</label>
+              <label class="checkbox"><input id="dash-toggle-gas" type="checkbox" checked
+                  onchange="dashboard_updateAll()"> Gas</label>
+              <label class="checkbox"><input id="dash-toggle-acqua" type="checkbox" checked
+                  onchange="dashboard_updateAll()"> Acqua</label>
+            </div>
+          </div>
+
+          <!-- KPI Cards Grid -->
+          <div class="dashboard-grid">
+            <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+              <div class="kpi-label">Consumo Totale Anno</div>
+              <div class="kpi-value" id="dash-kpi-consumo">0</div>
+              <div class="kpi-unit" id="dash-kpi-consumo-unit">kWh/m³</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+              <div class="kpi-label">Spesa Totale Anno</div>
+              <div class="kpi-value" id="dash-kpi-spesa">€0</div>
+              <div class="kpi-unit">Anno corrente</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+              <div class="kpi-label">Media Mensile</div>
+              <div class="kpi-value" id="dash-kpi-media">0</div>
+              <div class="kpi-unit" id="dash-kpi-media-unit">kWh/m³/mese</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+              <div class="kpi-label">Letture Registrate</div>
+              <div class="kpi-value" id="dash-kpi-letture">0</div>
+              <div class="kpi-unit">Totali</div>
+            </div>
+          </div>
+
+          <!-- Confronto Ultimo Mese vs Precedente -->
+          <div class="comparison-card">
+            <h5 class="title is-5" style="margin-bottom: 20px;">🔄 Confronto Mensile</h5>
+            <div id="dash-comparison-content">
+              <p class="small-muted" style="text-align: center; padding: 30px; color: #9ca3af;">Nessun dato disponibile
+                per il confronto</p>
+            </div>
+          </div>
+
+          <!-- Mini Grafico Andamento Anno -->
+          <div class="mini-chart-container">
+            <h5 class="title is-5" style="margin-bottom: 16px;">📈 Andamento Ultimi 12 Mesi</h5>
+            <canvas id="dashboard-mini-chart" style="max-height: 250px;"></canvas>
+          </div>
+        </section>
+
+        <section id="energia" class="panel" style="display:none;">
           <div class="columns">
             <div class="column is-5">
               <div class="card-min">
@@ -881,6 +1093,275 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       '#8dd3c7', '#81D4FA', '#bebada', '#fb8072', '#80b1d3', '#fdb462', '#b3de69', '#fccde5', '#d9d9d9', '#bc80bd',
       '#ccebc5', '#ffed6f', '#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00'
     ];
+
+    /* ===========================
+       DASHBOARD FUNCTIONS
+       =========================== */
+
+    let dashboardMiniChart = null;
+
+    function dashboard_getSelectedTypes() {
+      return {
+        energia: document.getElementById('dash-toggle-energia')?.checked ?? true,
+        gas: document.getElementById('dash-toggle-gas')?.checked ?? true,
+        acqua: document.getElementById('dash-toggle-acqua')?.checked ?? true
+      };
+    }
+
+    function dashboard_getCurrentYear() {
+      return new Date().getFullYear();
+    }
+
+    function dashboard_filterDataByYear(allData, year) {
+      const filtered = {};
+      Object.keys(allData).forEach(tipo => {
+        filtered[tipo] = (allData[tipo] || []).filter(item => {
+          if (!item.mese) return false;
+          const itemYear = parseInt(item.mese.split('-')[0]);
+          return itemYear === year;
+        });
+      });
+      return filtered;
+    }
+
+    function dashboard_calculateKPIs() {
+      const selectedTypes = dashboard_getSelectedTypes();
+      const currentYear = dashboard_getCurrentYear();
+      const yearData = dashboard_filterDataByYear(consumi, currentYear);
+
+      let totalConsumo = 0;
+      let totalSpesa = 0;
+      let totalLetture = 0;
+      const uniqueMonths = new Set();
+
+      Object.keys(selectedTypes).forEach(tipo => {
+        if (!selectedTypes[tipo]) return;
+
+        const data = yearData[tipo] || [];
+        data.forEach(item => {
+          totalConsumo += item.consumo || 0;
+          totalSpesa += item.importo || 0;
+          totalLetture++;
+          if (item.mese) uniqueMonths.add(item.mese);
+        });
+      });
+
+      const monthCount = uniqueMonths.size;
+      const media = monthCount > 0 ? totalConsumo / monthCount : 0;
+
+      return {
+        consumo: totalConsumo,
+        spesa: totalSpesa,
+        media: media,
+        letture: totalLetture,
+        monthCount: monthCount
+      };
+    }
+
+    function dashboard_getLastTwoMonths() {
+      const selectedTypes = dashboard_getSelectedTypes();
+      const allMesi = new Set();
+
+      Object.keys(selectedTypes).forEach(tipo => {
+        if (!selectedTypes[tipo]) return;
+        (consumi[tipo] || []).forEach(item => {
+          if (item.mese) allMesi.add(item.mese);
+        });
+      });
+
+      const sortedMesi = Array.from(allMesi).sort();
+      if (sortedMesi.length < 2) return null;
+
+      const lastMonth = sortedMesi[sortedMesi.length - 1];
+      const prevMonth = sortedMesi[sortedMesi.length - 2];
+
+      let lastConsumo = 0, lastSpesa = 0;
+      let prevConsumo = 0, prevSpesa = 0;
+
+      Object.keys(selectedTypes).forEach(tipo => {
+        if (!selectedTypes[tipo]) return;
+
+        (consumi[tipo] || []).forEach(item => {
+          if (item.mese === lastMonth) {
+            lastConsumo += item.consumo || 0;
+            lastSpesa += item.importo || 0;
+          } else if (item.mese === prevMonth) {
+            prevConsumo += item.consumo || 0;
+            prevSpesa += item.importo || 0;
+          }
+        });
+      });
+
+      return {
+        lastMonth,
+        prevMonth,
+        lastConsumo,
+        lastSpesa,
+        prevConsumo,
+        prevSpesa
+      };
+    }
+
+    function dashboard_formatTrend(current, previous) {
+      if (previous === 0) return { text: 'N/D', className: 'trend-neutral', icon: '━' };
+
+      const diff = current - previous;
+      const percent = (diff / previous * 100).toFixed(1);
+
+      if (diff > 0) {
+        return { text: `+${percent}%`, className: 'trend-up', icon: '⬆️' };
+      } else if (diff < 0) {
+        return { text: `${percent}%`, className: 'trend-down', icon: '⬇️' };
+      } else {
+        return { text: '0%', className: 'trend-neutral', icon: '━' };
+      }
+    }
+
+    function dashboard_updateKPIs() {
+      const kpis = dashboard_calculateKPIs();
+
+      document.getElementById('dash-kpi-consumo').textContent = kpis.consumo.toFixed(0);
+      document.getElementById('dash-kpi-spesa').textContent = `€${kpis.spesa.toFixed(0)}`;
+      document.getElementById('dash-kpi-media').textContent = kpis.media.toFixed(0);
+      document.getElementById('dash-kpi-letture').textContent = kpis.letture;
+    }
+
+    function dashboard_updateComparison() {
+      const comparison = dashboard_getLastTwoMonths();
+      const container = document.getElementById('dash-comparison-content');
+
+      if (!comparison) {
+        container.innerHTML = '<p class="small-muted" style="text-align: center; padding: 30px; color: #9ca3af;">Necessari almeno 2 mesi di dati</p>';
+        return;
+      }
+
+      const consumoTrend = dashboard_formatTrend(comparison.lastConsumo, comparison.prevConsumo);
+      const spesaTrend = dashboard_formatTrend(comparison.lastSpesa, comparison.prevSpesa);
+
+      container.innerHTML = `
+        <div class="comparison-grid">
+          <div class="comparison-item">
+            <div class="small-muted">Ultimo Mese (${formatMese(comparison.lastMonth)})</div>
+            <div class="comparison-value-large">${comparison.lastConsumo.toFixed(0)} <span style="font-size: 1rem; color: #6b7280;">kWh/m³</span></div>
+            <div class="comparison-value-small">€${comparison.lastSpesa.toFixed(2)}</div>
+          </div>
+          
+          <div class="comparison-item">
+            <div class="small-muted">Mese Precedente (${formatMese(comparison.prevMonth)})</div>
+            <div class="comparison-value-large">${comparison.prevConsumo.toFixed(0)} <span style="font-size: 1rem; color: #6b7280;">kWh/m³</span></div>
+            <div class="comparison-value-small">€${comparison.prevSpesa.toFixed(2)}</div>
+          </div>
+          
+          <div class="comparison-item">
+            <div class="small-muted" style="margin-bottom: 8px;">Trend Consumo</div>
+            <div class="trend-indicator ${consumoTrend.className}">
+              ${consumoTrend.icon} ${consumoTrend.text}
+            </div>
+            <div class="small-muted" style="margin-top: 16px; margin-bottom: 8px;">Trend Spesa</div>
+            <div class="trend-indicator ${spesaTrend.className}">
+              ${spesaTrend.icon} ${spesaTrend.text}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function dashboard_updateMiniChart() {
+      const canvas = document.getElementById('dashboard-mini-chart');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const selectedTypes = dashboard_getSelectedTypes();
+
+      // Genera etichette ultimi 12 mesi
+      const labels = [];
+      const now = new Date();
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        labels.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+
+      // Calcola dati per mese
+      const monthlyData = {};
+      labels.forEach(label => { monthlyData[label] = 0; });
+
+      Object.keys(selectedTypes).forEach(tipo => {
+        if (!selectedTypes[tipo]) return;
+
+        (consumi[tipo] || []).forEach(item => {
+          if (monthlyData.hasOwnProperty(item.mese)) {
+            monthlyData[item.mese] += item.consumo || 0;
+          }
+        });
+      });
+
+      const data = labels.map(label => monthlyData[label]);
+
+      // Distruggi grafico esistente
+      if (dashboardMiniChart) {
+        dashboardMiniChart.destroy();
+      }
+
+      // Crea nuovo grafico
+      dashboardMiniChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels.map(l => formatMese(l)),
+          datasets: [{
+            label: 'Consumo Totale',
+            data: data,
+            backgroundColor: 'rgba(102, 126, 234, 0.8)',
+            borderColor: 'rgba(102, 126, 234, 1)',
+            borderWidth: 2,
+            borderRadius: 8,
+            hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              cornerRadius: 8,
+              titleFont: { size: 14, weight: 'bold' },
+              bodyFont: { size: 13 },
+              callbacks: {
+                label: function (context) {
+                  return `Consumo: ${context.parsed.y.toFixed(0)} kWh/m³`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              },
+              ticks: {
+                callback: function (value) {
+                  return value.toFixed(0);
+                }
+              }
+            },
+            x: {
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function dashboard_updateAll() {
+      dashboard_updateKPIs();
+      dashboard_updateComparison();
+      dashboard_updateMiniChart();
+    }
 
     /* ===========================
        SUPABASE INIT & SYNC
@@ -2312,6 +2793,47 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       doc.save(`statistiche_${new Date().toISOString().split('T')[0]}.pdf`);
       document.getElementById('modal-pdf').classList.remove('is-active');
     }
+
+    /* ===========================
+       TAB SWITCHING & DASHBOARD INIT
+       =========================== */
+
+    // Gestione switching tra tab
+    document.addEventListener('DOMContentLoaded', function () {
+      const tabs = document.querySelectorAll('#mainTabs li');
+      const panels = document.querySelectorAll('.panel');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', function () {
+          const targetTab = this.getAttribute('data-tab');
+
+          // Rimuovi classe active da tutti i tab
+          tabs.forEach(t => t.classList.remove('is-active'));
+          // Aggiungi classe active al tab cliccato
+          this.classList.add('is-active');
+
+          // Nascondi tutti i panel
+          panels.forEach(panel => panel.style.display = 'none');
+
+          // Mostra il panel corrispondente
+          const targetPanel = document.getElementById(targetTab);
+          if (targetPanel) {
+            targetPanel.style.display = 'block';
+
+            // Se è il tab dashboard, aggiorna i dati
+            if (targetTab === 'dashboard') {
+              setTimeout(() => dashboard_updateAll(), 100);
+            }
+          }
+        });
+      });
+
+      // Inizializza la dashboard al caricamento se è il tab attivo
+      const activeDashboard = document.querySelector('#mainTabs li.is-active[data-tab="dashboard"]');
+      if (activeDashboard) {
+        setTimeout(() => dashboard_updateAll(), 500);
+      }
+    });
   </script>
   <script type="module" src="/index.tsx"></script>
 </body>
