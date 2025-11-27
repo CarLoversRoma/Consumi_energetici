@@ -420,6 +420,7 @@
       <div class="tabs is-toggle is-fullwidth">
         <ul id="mainTabs">
           <li class="is-active" data-tab="dashboard"><a>📊 Dashboard</a></li>
+          <li data-tab="analisi-budget"><a>📈 Analisi Budget</a></li>
           <li data-tab="energia"><a>Energia</a></li>
           <li data-tab="gas"><a>Gas</a></li>
           <li data-tab="acqua"><a>Acqua</a></li>
@@ -484,6 +485,123 @@
           <div class="mini-chart-container">
             <h5 class="title is-5" style="margin-bottom: 16px;">📈 Andamento Ultimi 12 Mesi</h5>
             <canvas id="dashboard-mini-chart" style="max-height: 250px;"></canvas>
+          </div>
+        </section>
+
+        <!-- ===== ANALISI BUDGET SECTION ===== -->
+        <section id="analisi-budget" class="panel" style="display:none;">
+          <!-- Header con Selettori -->
+          <div
+            style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <h4 class="title is-4" style="margin: 0;">📈 Analisi Budget - Confronto Anno su Anno</h4>
+            <div class="inline-gap">
+              <label class="checkbox"><input id="budget-toggle-energia" type="checkbox" checked
+                  onchange="budget_updateAll()"> Energia</label>
+              <label class="checkbox"><input id="budget-toggle-gas" type="checkbox" checked
+                  onchange="budget_updateAll()"> Gas</label>
+              <label class="checkbox"><input id="budget-toggle-acqua" type="checkbox" checked
+                  onchange="budget_updateAll()"> Acqua</label>
+              <div style="width: 1px; height: 20px; background: #e5e7eb; margin: 0 8px;"></div>
+              <label class="small-muted" style="margin-right: 8px;">Anno:</label>
+              <div class="select is-small">
+                <select id="budget-year-select" onchange="budget_updateAll()">
+                  <option value="2023">2023</option>
+                  <option value="2024">2024</option>
+                  <option value="2025" selected>2025</option>
+                  <option value="2026">2026</option>
+                  <option value="2027">2027</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Cards Grid -->
+          <div class="dashboard-grid">
+            <div class="kpi-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+              <div class="kpi-label">Consumo Anno Corrente</div>
+              <div class="kpi-value" id="budget-kpi-consumo-current">0</div>
+              <div class="kpi-unit">kWh/m³</div>
+              <div class="small-muted" style="margin-top: 8px; opacity: 0.9;" id="budget-kpi-consumo-previous">Anno
+                prec: 0 kWh/m³</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+              <div class="kpi-label">Spesa Anno Corrente</div>
+              <div class="kpi-value" id="budget-kpi-spesa-current">€0</div>
+              <div class="kpi-unit">Totale</div>
+              <div class="small-muted" style="margin-top: 8px; opacity: 0.9;" id="budget-kpi-spesa-previous">Anno prec:
+                €0</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+              <div class="kpi-label">Variazione Consumo</div>
+              <div class="kpi-value" id="budget-kpi-variation">0%</div>
+              <div class="kpi-unit">vs Anno Precedente</div>
+            </div>
+
+            <div class="kpi-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+              <div class="kpi-label">Proiezione Fine Anno</div>
+              <div class="kpi-value" id="budget-kpi-projection">0</div>
+              <div class="kpi-unit">kWh/m³ stimati</div>
+            </div>
+          </div>
+
+          <!-- Tabella Confronto Mensile -->
+          <div class="comparison-card" style="margin-top: 24px;">
+            <h5 class="title is-5" style="margin-bottom: 20px;">📊 Confronto Mensile Dettagliato</h5>
+            <div style="overflow-x: auto;">
+              <table class="table is-fullwidth is-hoverable is-striped" id="budget-comparison-table">
+                <thead>
+                  <tr>
+                    <th>Mese</th>
+                    <th>Consumo Anno Corrente</th>
+                    <th>Spesa Anno Corrente</th>
+                    <th>Consumo Anno Precedente</th>
+                    <th>Spesa Anno Precedente</th>
+                    <th>Δ% Consumo</th>
+                    <th>Δ% Spesa</th>
+                  </tr>
+                </thead>
+                <tbody id="budget-table-body">
+                  <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Nessun dato disponibile
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot id="budget-table-footer" style="font-weight: 600; background: #f9fafb;">
+                  <tr>
+                    <td>TOTALE</td>
+                    <td id="budget-footer-consumo-current">—</td>
+                    <td id="budget-footer-spesa-current">—</td>
+                    <td id="budget-footer-consumo-previous">—</td>
+                    <td id="budget-footer-spesa-previous">—</td>
+                    <td id="budget-footer-delta-consumo">—</td>
+                    <td id="budget-footer-delta-spesa">—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Grafici -->
+          <div style="margin-top: 24px;">
+            <div class="mini-chart-container">
+              <h5 class="title is-5" style="margin-bottom: 16px;">📈 Confronto Andamento Anno su Anno</h5>
+              <canvas id="budget-chart-comparison" style="max-height: 300px;"></canvas>
+            </div>
+          </div>
+
+          <div
+            style="margin-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+            <div class="mini-chart-container">
+              <h5 class="title is-5" style="margin-bottom: 16px;">📊 Variazioni Percentuali Mensili</h5>
+              <canvas id="budget-chart-variations" style="max-height: 280px;"></canvas>
+            </div>
+
+            <div class="mini-chart-container">
+              <h5 class="title is-5" style="margin-bottom: 16px;">🔮 Proiezione Fine Anno</h5>
+              <canvas id="budget-chart-projection" style="max-height: 280px;"></canvas>
+            </div>
           </div>
         </section>
 
@@ -1364,8 +1482,832 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     }
 
     /* ===========================
+       BUDGET ANALYSIS FUNCTIONS
+       =========================== */
+
+    let budgetChartComparison = null;
+    let budgetChartVariations = null;
+    let budgetChartProjection = null;
+
+    // Utility: Get selected utility types
+    function budget_getSelectedTypes() {
+      return {
+        energia: document.getElementById('budget-toggle-energia')?.checked ?? true,
+        gas: document.getElementById('budget-toggle-gas')?.checked ?? true,
+        acqua: document.getElementById('budget-toggle-acqua')?.checked ?? true
+      };
+    }
+
+    // Utility: Get selected year
+    function budget_getSelectedYear() {
+      const select = document.getElementById('budget-year-select');
+      return parseInt(select?.value || new Date().getFullYear());
+    }
+
+    // Utility: Filter consumi by year
+    function budget_getYearData(year) {
+      const filtered = { energia: [], gas: [], acqua: [] };
+      Object.keys(consumi).forEach(tipo => {
+        filtered[tipo] = (consumi[tipo] || []).filter(item => {
+          if (!item.mese) return false;
+          const itemYear = parseInt(item.mese.split('-')[0]);
+          return itemYear === year;
+        });
+      });
+      return filtered;
+    }
+
+    // Utility: Aggregate monthly data with consumo and spesa
+    function budget_getMonthlyAggregates(yearData, selectedTypes) {
+      const monthly = {};
+
+      Object.keys(selectedTypes).forEach(tipo => {
+        if (!selectedTypes[tipo]) return;
+
+        (yearData[tipo] || []).forEach(item => {
+          if (!monthly[item.mese]) {
+            monthly[item.mese] = { consumo: 0, spesa: 0 };
+          }
+          monthly[item.mese].consumo += item.consumo || 0;
+          monthly[item.mese].spesa += item.importo || 0;
+        });
+      });
+
+      return monthly;
+    }
+
+    // Calculate Year-over-Year comparison
+    function budget_calculateYoY() {
+      const selectedTypes = budget_getSelectedTypes();
+      const currentYear = budget_getSelectedYear();
+      const previousYear = currentYear - 1;
+
+      const currentData = budget_getYearData(currentYear);
+      const previousData = budget_getYearData(previousYear);
+
+      const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
+      const previousMonthly = budget_getMonthlyAggregates(previousData, selectedTypes);
+
+      // Calculate totals
+      let currentTotal = { consumo: 0, spesa: 0 };
+      let previousTotal = { consumo: 0, spesa: 0 };
+
+      Object.values(currentMonthly).forEach(m => {
+        currentTotal.consumo += m.consumo;
+        currentTotal.spesa += m.spesa;
+      });
+
+      Object.values(previousMonthly).forEach(m => {
+        previousTotal.consumo += m.consumo;
+        previousTotal.spesa += m.spesa;
+      });
+
+      // Calculate variations
+      const consumoVariation = previousTotal.consumo > 0
+        ? ((currentTotal.consumo - previousTotal.consumo) / previousTotal.consumo * 100)
+        : 0;
+
+      const spesaVariation = previousTotal.spesa > 0
+        ? ((currentTotal.spesa - previousTotal.spesa) / previousTotal.spesa * 100)
+        : 0;
+
+      // Build monthly comparison array
+      const allMonths = new Set([...Object.keys(currentMonthly), ...Object.keys(previousMonthly)]);
+      const monthlyComparison = Array.from(allMonths).sort().map(month => {
+        const monthNum = month.split('-')[1];
+        const current = currentMonthly[month] || { consumo: 0, spesa: 0 };
+        const previous = previousMonthly[`${previousYear}-${monthNum}`] || { consumo: 0, spesa: 0 };
+
+        const deltaConsumo = previous.consumo > 0
+          ? ((current.consumo - previous.consumo) / previous.consumo * 100)
+          : (current.consumo > 0 ? 100 : 0);
+
+        const deltaSpesa = previous.spesa > 0
+          ? ((current.spesa - previous.spesa) / previous.spesa * 100)
+          : (current.spesa > 0 ? 100 : 0);
+
+        return {
+          month,
+          current,
+          previous,
+          deltaConsumo,
+          deltaSpesa
+        };
+      });
+
+      return {
+        currentYear,
+        previousYear,
+        currentTotal,
+        previousTotal,
+        consumoVariation,
+        spesaVariation,
+        monthlyComparison
+      };
+    }
+
+    // Calculate projection for end of year
+    function budget_calculateProjection() {
+      const selectedTypes = budget_getSelectedTypes();
+      const currentYear = budget_getSelectedYear();
+      const currentData = budget_getYearData(currentYear);
+      const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
+
+      const now = new Date();
+      const currentMonth = now.getFullYear() === currentYear ? now.getMonth() + 1 : 12;
+
+      // Get available months
+      const availableMonths = Object.keys(currentMonthly)
+        .filter(m => parseInt(m.split('-')[1]) <= currentMonth)
+        .sort();
+
+      if (availableMonths.length === 0) return 0;
+
+      // Calculate moving average of last 3 months
+      const last3Months = availableMonths.slice(-3);
+      const avgConsumption = last3Months.reduce((sum, month) =>
+        sum + currentMonthly[month].consumo, 0) / last3Months.length;
+
+      // Calculate total so far
+      const consumedSoFar = Object.values(currentMonthly).reduce((sum, m) => sum + m.consumo, 0);
+
+      // Project remaining months
+      const remainingMonths = 12 - availableMonths.length;
+      const projectedRemaining = avgConsumption * remainingMonths;
+
+      return consumedSoFar + projectedRemaining;
+    }
+
+    // Update KPI Cards
+    function budget_updateKPIs() {
+      const yoy = budget_calculateYoY();
+      const projection = budget_calculateProjection();
+
+      document.getElementById('budget-kpi-consumo-current').textContent = yoy.currentTotal.consumo.toFixed(0);
+      document.getElementById('budget-kpi-consumo-previous').textContent =
+        `Anno prec: ${yoy.previousTotal.consumo.toFixed(0)} kWh/m³`;
+
+      document.getElementById('budget-kpi-spesa-current').textContent = `€${yoy.currentTotal.spesa.toFixed(0)}`;
+      document.getElementById('budget-kpi-spesa-previous').textContent =
+        `Anno prec: €${yoy.previousTotal.spesa.toFixed(0)}`;
+
+      const variationIcon = yoy.consumoVariation > 0 ? '⬆️' : yoy.consumoVariation < 0 ? '⬇️' : '━';
+      const variationSign = yoy.consumoVariation > 0 ? '+' : '';
+      document.getElementById('budget-kpi-variation').textContent =
+        `${variationIcon} ${variationSign}${yoy.consumoVariation.toFixed(1)}%`;
+
+      document.getElementById('budget-kpi-projection').textContent = projection.toFixed(0);
+    }
+
+    // Render comparison table
+    function budget_renderTable() {
+      const yoy = budget_calculateYoY();
+      const tbody = document.getElementById('budget-table-body');
+
+      if (!tbody) return;
+
+      if (yoy.monthlyComparison.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #9ca3af;">Nessun dato disponibile</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = '';
+
+      yoy.monthlyComparison.forEach(item => {
+        const tr = document.createElement('tr');
+
+        // Style for delta cells
+        const getDeltaStyle = (delta) => {
+          if (delta > 5) return 'background: #fee2e2; color: #991b1b; font-weight: 600;';
+          if (delta < -5) return 'background: #d1fae5; color: #065f46; font-weight: 600;';
+          return 'color: #6b7280;';
+        };
+
+        const formatDelta = (delta) => {
+          const sign = delta > 0 ? '+' : '';
+          return delta !== 0 && !isNaN(delta) ? `${sign}${delta.toFixed(1)}%` : '—';
+        };
+
+        tr.innerHTML = `
+          <td><strong>${formatMese(item.month)}</strong></td>
+          <td>${item.current.consumo > 0 ? item.current.consumo.toFixed(2) : '—'} kWh/m³</td>
+          <td>€${item.current.spesa > 0 ? item.current.spesa.toFixed(2) : '0.00'}</td>
+          <td>${item.previous.consumo > 0 ? item.previous.consumo.toFixed(2) : '—'} kWh/m³</td>
+          <td>€${item.previous.spesa > 0 ? item.previous.spesa.toFixed(2) : '0.00'}</td>
+          <td style="${getDeltaStyle(item.deltaConsumo)}">${formatDelta(item.deltaConsumo)}</td>
+          <td style="${getDeltaStyle(item.deltaSpesa)}">${formatDelta(item.deltaSpesa)}</td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+
+      // Update footer
+      document.getElementById('budget-footer-consumo-current').textContent =
+        `${yoy.currentTotal.consumo.toFixed(2)} kWh/m³`;
+      document.getElementById('budget-footer-spesa-current').textContent =
+        `€${yoy.currentTotal.spesa.toFixed(2)}`;
+      document.getElementById('budget-footer-consumo-previous').textContent =
+        `${yoy.previousTotal.consumo.toFixed(2)} kWh/m³`;
+      document.getElementById('budget-footer-spesa-previous').textContent =
+        `€${yoy.previousTotal.spesa.toFixed(2)}`;
+
+      const formatFooterDelta = (delta) => {
+        const sign = delta > 0 ? '+' : '';
+        return `${sign}${delta.toFixed(1)}%`;
+      };
+
+      const footerConsumoStyle = yoy.consumoVariation > 0 ? 'color: #991b1b;' : yoy.consumoVariation < 0 ? 'color: #065f46;' : '';
+      const footerSpesaStyle = yoy.spesaVariation > 0 ? 'color: #991b1b;' : yoy.spesaVariation < 0 ? 'color: #065f46;' : '';
+
+      document.getElementById('budget-footer-delta-consumo').innerHTML =
+        `<span style="${footerConsumoStyle}">${formatFooterDelta(yoy.consumoVariation)}</span>`;
+      document.getElementById('budget-footer-delta-spesa').innerHTML =
+        `<span style="${footerSpesaStyle}">${formatFooterDelta(yoy.spesaVariation)}</span>`;
+    }
+
+    // Render YoY comparison chart
+    function budget_renderComparisonChart() {
+      const canvas = document.getElementById('budget-chart-comparison');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const yoy = budget_calculateYoY();
+
+      // Generate all 12 months labels
+      const labels = [];
+      for (let i = 1; i <= 12; i++) {
+        labels.push(`${yoy.currentYear}-${String(i).padStart(2, '0')}`);
+      }
+
+      // Prepare consumption datasets
+      const currentConsumoPoints = labels.map(month => {
+        const item = yoy.monthlyComparison.find(m => m.month === month);
+        return item ? item.current.consumo : null;
+      });
+
+      const previousConsumoPoints = labels.map(month => {
+        const monthNum = month.split('-')[1];
+        const item = yoy.monthlyComparison.find(m => {
+          const itemMonthNum = m.month.split('-')[1];
+          return itemMonthNum === monthNum;
+        });
+        return item ? item.previous.consumo : null;
+      });
+
+      // Prepare expense datasets
+      const currentSpesaPoints = labels.map(month => {
+        const item = yoy.monthlyComparison.find(m => m.month === month);
+        return item ? item.current.spesa : null;
+      });
+
+      const previousSpesaPoints = labels.map(month => {
+        const monthNum = month.split('-')[1];
+        const item = yoy.monthlyComparison.find(m => {
+          const itemMonthNum = m.month.split('-')[1];
+          return itemMonthNum === monthNum;
+        });
+        return item ? item.previous.spesa : null;
+      });
+
+      if (budgetChartComparison) {
+        budgetChartComparison.destroy();
+      }
+
+      budgetChartComparison = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.map(l => formatMese(l)),
+          datasets: [
+            {
+              label: `Consumo ${yoy.currentYear}`,
+              data: currentConsumoPoints,
+              borderColor: '#667eea',
+              backgroundColor: 'rgba(102, 126, 234, 0.1)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              yAxisID: 'y-consumo'
+            },
+            {
+              label: `Consumo ${yoy.previousYear}`,
+              data: previousConsumoPoints,
+              borderColor: '#9ca3af',
+              backgroundColor: 'rgba(156, 163, 175, 0.05)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              tension: 0.4,
+              fill: false,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              yAxisID: 'y-consumo'
+            },
+            {
+              label: `Spesa ${yoy.currentYear}`,
+              data: currentSpesaPoints,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointStyle: 'rect',
+              yAxisID: 'y-spesa'
+            },
+            {
+              label: `Spesa ${yoy.previousYear}`,
+              data: previousSpesaPoints,
+              borderColor: '#6ee7b7',
+              backgroundColor: 'rgba(110, 231, 183, 0.05)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              tension: 0.4,
+              fill: false,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointStyle: 'rect',
+              yAxisID: 'y-spesa'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 15
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              cornerRadius: 8,
+              callbacks: {
+                label: function (context) {
+                  const value = context.parsed.y ? context.parsed.y.toFixed(2) : '—';
+                  const unit = context.dataset.yAxisID === 'y-consumo' ? ' kWh/m³' : ' €';
+                  return `${context.dataset.label}: ${value}${unit}`;
+                }
+              }
+            }
+          },
+          scales: {
+            'y-consumo': {
+              type: 'linear',
+              position: 'left',
+              beginAtZero: true,
+              grid: { color: 'rgba(102, 126, 234, 0.1)' },
+              title: {
+                display: true,
+                text: 'Consumo (kWh/m³)',
+                color: '#667eea',
+                font: { weight: 'bold' }
+              },
+              ticks: {
+                color: '#667eea',
+                callback: function (value) {
+                  return value.toFixed(0);
+                }
+              }
+            },
+            'y-spesa': {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              grid: { display: false },
+              title: {
+                display: true,
+                text: 'Spesa (€)',
+                color: '#10b981',
+                font: { weight: 'bold' }
+              },
+              ticks: {
+                color: '#10b981',
+                callback: function (value) {
+                  return '€' + value.toFixed(0);
+                }
+              }
+            },
+            x: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Render variations chart
+    function budget_renderVariationChart() {
+      const canvas = document.getElementById('budget-chart-variations');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const yoy = budget_calculateYoY();
+
+      const labels = yoy.monthlyComparison.map(item => formatMese(item.month));
+      const consumoVariations = yoy.monthlyComparison.map(item => item.deltaConsumo);
+      const spesaVariations = yoy.monthlyComparison.map(item => item.deltaSpesa);
+
+      // Color arrays for consumption
+      const consumoColors = consumoVariations.map(v =>
+        v > 0 ? 'rgba(239, 68, 68, 0.7)' : v < 0 ? 'rgba(34, 197, 94, 0.7)' : 'rgba(156, 163, 175, 0.7)'
+      );
+
+      // Color arrays for expense
+      const spesaColors = spesaVariations.map(v =>
+        v > 0 ? 'rgba(220, 38, 38, 0.7)' : v < 0 ? 'rgba(5, 150, 105, 0.7)' : 'rgba(107, 114, 128, 0.7)'
+      );
+
+      if (budgetChartVariations) {
+        budgetChartVariations.destroy();
+      }
+
+      budgetChartVariations = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Δ% Consumo',
+              data: consumoVariations,
+              backgroundColor: consumoColors,
+              borderColor: consumoColors.map(c => c.replace('0.7', '1')),
+              borderWidth: 2,
+              borderRadius: 6
+            },
+            {
+              label: 'Δ% Spesa',
+              data: spesaVariations,
+              backgroundColor: spesaColors,
+              borderColor: spesaColors.map(c => c.replace('0.7', '1')),
+              borderWidth: 2,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top'
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const sign = context.parsed.y > 0 ? '+' : '';
+                  return `${context.dataset.label}: ${sign}${context.parsed.y.toFixed(1)}%`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              grid: { color: 'rgba(0, 0, 0, 0.05)' },
+              ticks: {
+                callback: function (value) {
+                  return value.toFixed(0) + '%';
+                }
+              }
+            },
+            x: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Render projection chart
+    function budget_renderProjectionChart() {
+      const canvas = document.getElementById('budget-chart-projection');
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const selectedTypes = budget_getSelectedTypes();
+      const currentYear = budget_getSelectedYear();
+      const currentData = budget_getYearData(currentYear);
+      const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
+
+      const now = new Date();
+      const currentMonth = now.getFullYear() === currentYear ? now.getMonth() + 1 : 12;
+
+      // Generate labels for all 12 months
+      const labels = [];
+      for (let i = 1; i <= 12; i++) {
+        labels.push(`${currentYear}-${String(i).padStart(2, '0')}`);
+      }
+
+      // Real consumption data
+      const realConsumoData = labels.map((month, idx) => {
+        const monthNum = idx + 1;
+        if (monthNum > currentMonth) return null;
+        return currentMonthly[month]?.consumo || null;
+      });
+
+      // Real expense data
+      const realSpesaData = labels.map((month, idx) => {
+        const monthNum = idx + 1;
+        if (monthNum > currentMonth) return null;
+        return currentMonthly[month]?.spesa || null;
+      });
+
+      // Projection consumption data
+      const projectionConsumoData = [...realConsumoData];
+      const availableMonths = Object.keys(currentMonthly).filter(m =>
+        parseInt(m.split('-')[1]) <= currentMonth
+      ).sort();
+
+      if (availableMonths.length >= 3) {
+        const last3 = availableMonths.slice(-3);
+        const avgConsumption = last3.reduce((sum, m) =>
+          sum + currentMonthly[m].consumo, 0) / last3.length;
+
+        for (let i = currentMonth; i < 12; i++) {
+          projectionConsumoData[i] = avgConsumption;
+        }
+      }
+
+      // Projection expense data
+      const projectionSpesaData = [...realSpesaData];
+      if (availableMonths.length >= 3) {
+        const last3 = availableMonths.slice(-3);
+        const avgSpesa = last3.reduce((sum, m) =>
+          sum + currentMonthly[m].spesa, 0) / last3.length;
+
+        for (let i = currentMonth; i < 12; i++) {
+          projectionSpesaData[i] = avgSpesa;
+        }
+      }
+
+      if (budgetChartProjection) {
+        budgetChartProjection.destroy();
+      }
+
+      budgetChartProjection = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels.map(l => formatMese(l)),
+          datasets: [
+            {
+              label: 'Consumo Reale',
+              data: realConsumoData,
+              borderColor: '#667eea',
+              backgroundColor: 'rgba(102, 126, 234, 0.1)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: true,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              yAxisID: 'y-consumo'
+            },
+            {
+              label: 'Consumo Proiettato',
+              data: projectionConsumoData.map((val, idx) => idx >= currentMonth - 1 ? val : null),
+              borderColor: '#a78bfa',
+              backgroundColor: 'rgba(167, 139, 250, 0.05)',
+              borderWidth: 2,
+              borderDash: [8, 4],
+              tension: 0.4,
+              fill: false,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointStyle: 'triangle',
+              yAxisID: 'y-consumo'
+            },
+            {
+              label: 'Spesa Reale',
+              data: realSpesaData,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 5,
+              pointHoverRadius: 7,
+              pointStyle: 'rect',
+              yAxisID: 'y-spesa'
+            },
+            {
+              label: 'Spesa Proiettata',
+              data: projectionSpesaData.map((val, idx) => idx >= currentMonth - 1 ? val : null),
+              borderColor: '#34d399',
+              backgroundColor: 'rgba(52, 211, 153, 0.05)',
+              borderWidth: 2,
+              borderDash: [8, 4],
+              tension: 0.4,
+              fill: false,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointStyle: 'rectRot',
+              yAxisID: 'y-spesa'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          interaction: {
+            mode: 'index',
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 12
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (context) {
+                  const value = context.parsed.y ? context.parsed.y.toFixed(2) : '—';
+                  const unit = context.dataset.yAxisID === 'y-consumo' ? ' kWh/m³' : ' €';
+                  return `${context.dataset.label}: ${value}${unit}`;
+                }
+              }
+            }
+          },
+          scales: {
+            'y-consumo': {
+              type: 'linear',
+              position: 'left',
+              beginAtZero: true,
+              grid: { color: 'rgba(102, 126, 234, 0.1)' },
+              title: {
+                display: true,
+                text: 'Consumo (kWh/m³)',
+                color: '#667eea',
+                font: { weight: 'bold' }
+              },
+              ticks: {
+                color: '#667eea'
+              }
+            },
+            'y-spesa': {
+              type: 'linear',
+              position: 'right',
+              beginAtZero: true,
+              grid: { display: false },
+              title: {
+                display: true,
+                text: 'Spesa (€)',
+                color: '#10b981',
+                font: { weight: 'bold' }
+              },
+              ticks: {
+                color: '#10b981',
+                callback: function (value) {
+                  return '€' + value.toFixed(0);
+                }
+              }
+            },
+            x: {
+              grid: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // Master update function
+    function budget_updateAll() {
+      budget_updateKPIs();
+      budget_renderTable();
+      budget_renderComparisonChart();
+      budget_renderVariationChart();
+      budget_renderProjectionChart();
+    }
+
+    /* ===========================
        SUPABASE INIT & SYNC
        =========================== */
+
+    // Global state for realtime channels cleanup
+    let consumiChannel = null;
+    let contatoriChannel = null;
+    let isLoading = false;
+
+    /* ===========================
+       UTILITY FUNCTIONS
+       =========================== */
+
+    // Retry logic with exponential backoff
+    async function retryOperation(fn, maxRetries = 3, initialDelay = 1000) {
+      let delay = initialDelay;
+
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await fn();
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+
+          console.log(`⚠️ Tentativo ${i + 1}/${maxRetries} fallito, riprovo tra ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+      }
+    }
+
+    // Loading overlay system
+    function showLoading(message = 'Caricamento...') {
+      if (isLoading) return; // Previeni overlay multipli
+      isLoading = true;
+
+      if (document.getElementById('loading-overlay')) return; // Già presente
+
+      const overlay = document.createElement('div');
+      overlay.id = 'loading-overlay';
+      overlay.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+                    background: rgba(0,0,0,0.6); z-index: 99999; 
+                    display: flex; align-items: center; justify-content: center;
+                    backdrop-filter: blur(2px);">
+          <div style="background: white; padding: 32px 48px; border-radius: 16px; 
+                      text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+                      min-width: 250px;">
+            <div style="width: 48px; height: 48px; border: 4px solid #e5e7eb; 
+                        border-top-color: #667eea; border-radius: 50%; 
+                        margin: 0 auto 16px; animation: spin 1s linear infinite;"></div>
+            <p style="margin: 0; font-weight: 600; color: #1f2937; font-size: 1.1rem;">${message}</p>
+          </div>
+        </div>
+      `;
+
+      // Add CSS animation if not exists
+      if (!document.getElementById('spinner-style')) {
+        const style = document.createElement('style');
+        style.id = 'spinner-style';
+        style.textContent = `
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `;
+        document.head.appendChild(style);
+      }
+
+      document.body.appendChild(overlay);
+    }
+
+    function hideLoading() {
+      isLoading = false;
+      const overlay = document.getElementById('loading-overlay');
+      if (overlay) {
+        overlay.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => overlay.remove(), 200);
+      }
+    }
+
+    // Debounce function for performance
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
+
+    // Debounced versions of expensive functions
+    const debouncedAggiornaGrafico = debounce(aggiornaGrafico, 300);
+    const debouncedBudgetUpdate = debounce(budget_updateAll, 300);
+    const debouncedDashboardUpdate = debounce(dashboard_updateAll, 300);
+
+    // Cleanup realtime channels
+    function cleanupRealtimeChannels() {
+      if (consumiChannel) {
+        supabase.removeChannel(consumiChannel);
+        consumiChannel = null;
+      }
+      if (contatoriChannel) {
+        supabase.removeChannel(contatoriChannel);
+        contatoriChannel = null;
+      }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      cleanupRealtimeChannels();
+    });
 
     async function initSupabase() {
       const url = localStorage.getItem('cm_supabase_url');
@@ -1417,22 +2359,36 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       if (!supabase) return;
 
       try {
+        showLoading('Sincronizzazione dati in corso...');
         updateSyncStatus('syncing', 'Sincronizzazione...');
 
-        // Carica contatori
-        const { data: contatoriData } = await supabase.from('contatori').select('*');
-        contatori = contatoriData || [];
+        // Carica tutti i dati in parallelo con retry logic
+        const [contatoriResult, consumiResult, fornitureResult, configResult] = await Promise.all([
+          retryOperation(() => supabase.from('contatori').select('*')),
+          retryOperation(() => supabase.from('consumi').select('*')),
+          retryOperation(() => supabase.from('forniture').select('*')),
+          retryOperation(() => supabase.from('configurazioni').select('*'))
+        ]);
 
-        // Carica consumi con allegati
-        const { data: consumiData } = await supabase.from('consumi').select('*');
+        // Check for errors
+        if (contatoriResult.error) throw contatoriResult.error;
+        if (consumiResult.error) throw consumiResult.error;
+        if (fornitureResult.error) throw fornitureResult.error;
+        if (configResult.error) throw configResult.error;
 
+        // Assegna contatori
+        contatori = contatoriResult.data || [];
+
+        // Processa consumi con allegati
         consumi = { energia: [], gas: [], acqua: [] };
-        if (consumiData) {
-          for (const consumo of consumiData) {
-            const { data: allegatiData } = await supabase
-              .from('allegati')
-              .select('*')
-              .eq('consumo_id', consumo.id);
+        if (consumiResult.data) {
+          for (const consumo of consumiResult.data) {
+            const { data: allegatiData } = await retryOperation(() =>
+              supabase
+                .from('allegati')
+                .select('*')
+                .eq('consumo_id', consumo.id)
+            );
 
             consumi[consumo.tipo].push({
               ...consumo,
@@ -1441,19 +2397,17 @@ ON CONFLICT (codice) DO NOTHING;</pre>
           }
         }
 
-        // Carica forniture
-        const { data: fornitureData } = await supabase.from('forniture').select('*');
+        // Assegna forniture
         forniture = {};
-        if (fornitureData) {
-          fornitureData.forEach(f => {
+        if (fornitureResult.data) {
+          fornitureResult.data.forEach(f => {
             forniture[f.codice] = { nome: f.nome, attiva: f.attiva };
           });
         }
 
         // Carica configurazioni
-        const { data: configData } = await supabase.from('configurazioni').select('*');
-        if (configData) {
-          const pathConfig = configData.find(c => c.chiave === 'sharepoint_path');
+        if (configResult.data) {
+          const pathConfig = configResult.data.find(c => c.chiave === 'sharepoint_path');
           if (pathConfig) {
             localStorage.setItem('cm_sharepoint_path_v1', pathConfig.valore);
           }
@@ -1463,31 +2417,41 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         popolaContatoriSelects();
         caricaTabelleTutti();
         aggiornaGrafico();
+        dashboard_updateAll();
+        budget_updateAll();
 
         updateSyncStatus('synced', 'Sincronizzato');
+        hideLoading();
       } catch (err) {
         console.error('Errore caricamento dati:', err);
         updateSyncStatus('error', 'Errore sincronizzazione');
+        hideLoading();
+
+        // Mantieni UI con dati precedenti invece di corrompere
+        alert('⚠️ Errore nel caricamento dati da Supabase.\nI dati precedenti sono stati mantenuti.\n\nDettagli: ' + err.message);
       }
     }
 
     function setupRealtimeSync() {
       if (!supabase) return;
 
+      // Cleanup existing channels before creating new ones
+      cleanupRealtimeChannels();
+
       // Ascolta cambiamenti su consumi
-      supabase
+      consumiChannel = supabase
         .channel('consumi-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'consumi' }, (payload) => {
-          console.log('Consumo cambiato:', payload);
+          console.log('📊 Consumo cambiato:', payload);
           caricaDatiDaSupabase();
         })
         .subscribe();
 
       // Ascolta cambiamenti su contatori
-      supabase
+      contatoriChannel = supabase
         .channel('contatori-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'contatori' }, (payload) => {
-          console.log('Contatore cambiato:', payload);
+          console.log('🔌 Contatore cambiato:', payload);
           caricaDatiDaSupabase();
         })
         .subscribe();
@@ -2118,92 +3082,149 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     }
 
     async function aggiungiConsumo(tipo) {
+      if (isLoading) return; // Previeni doppi click
+
       const contatoreId = parseInt(document.getElementById(`contatore-select-${tipo}`).value || 0);
       const mese = document.getElementById(`mese-${tipo}`).value;
       const importo = parseFloat(document.getElementById(`importo-${tipo}`).value || 0);
 
       if (!contatoreId) {
-        alert('Seleziona un contatore');
+        alert('❌ Seleziona un contatore');
         return;
       }
       if (!mese) {
-        alert('Seleziona mese e anno');
+        alert('❌ Seleziona mese e anno');
         return;
       }
 
-      if (tipo === 'gas') {
-        const tipoGas = document.getElementById('tipo-gas').value;
-        const val = parseFloat(document.getElementById('consumo-gas').value || 0);
-        if (isNaN(val) || val <= 0) {
-          alert('Inserisci consumo');
-          return;
-        }
-
-        let consumoKwh = val;
-        let consumoOriginale = null;
-        if (tipoGas === 'm3') {
-          consumoOriginale = val;
-          consumoKwh = val * 10.69;
-        } else if (tipoGas === 'litri') {
-          consumoOriginale = val;
-          consumoKwh = val * 6.6;
-        }
-
-        if (supabase) {
-          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoKwh, importo, consumoOriginale, tipoGas);
-        } else {
-          consumi.gas.push({
-            id: Date.now() + Math.random(),
-            contatoreId,
-            mese,
-            consumo: consumoKwh,
-            consumoOriginale,
-            tipoOrigine: tipoGas,
-            importo,
-            allegati: []
-          });
-        }
-      } else {
-        const consumoVal = parseFloat(document.getElementById(`consumo-${tipo}`).value || 0);
-        if (isNaN(consumoVal) || consumoVal <= 0) {
-          alert('Inserisci consumo');
-          return;
-        }
-
-        if (supabase) {
-          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoVal, importo);
-        } else {
-          consumi[tipo].push({
-            id: Date.now() + Math.random(),
-            contatoreId,
-            mese,
-            consumo: consumoVal,
-            importo,
-            allegati: []
-          });
-        }
+      // Validazione importo
+      if (importo < 0 || importo > 999999) {
+        alert('❌ L\'importo deve essere tra 0 e €999,999');
+        return;
       }
 
-      document.getElementById(`contatore-select-${tipo}`).value = '';
-      document.getElementById(`mese-${tipo}`).value = '';
-      document.getElementById(`consumo-${tipo}`).value = '';
-      document.getElementById(`importo-${tipo}`).value = '';
+      try {
+        showLoading('Salvataggio in corso...');
 
-      caricaTabelleTutti();
-      aggiornaGrafico();
+        if (tipo === 'gas') {
+          const tipoGas = document.getElementById('tipo-gas').value;
+          const val = parseFloat(document.getElementById('consumo-gas').value || 0);
+
+          if (isNaN(val) || val <= 0) {
+            hideLoading();
+            alert('❌ Inserisci un valore di consumo valido');
+            return;
+          }
+
+          if (val > 999999) {
+            hideLoading();
+            alert('❌ Il consumo deve essere minore di 999,999');
+            return;
+          }
+
+          let consumoKwh = val;
+          let consumoOriginale = null;
+          if (tipoGas === 'm3') {
+            consumoOriginale = val;
+            consumoKwh = val * 10.69;
+          } else if (tipoGas === 'litri') {
+            consumoOriginale = val;
+            consumoKwh = val * 6.6;
+          }
+
+          if (supabase) {
+            await retryOperation(() =>
+              salvaConsumoSupabase(tipo, contatoreId, mese, consumoKwh, importo, consumoOriginale, tipoGas)
+            );
+          } else {
+            consumi.gas.push({
+              id: Date.now() + Math.random(),
+              tipo: 'gas',
+              contatore_id: contatoreId,
+              mese,
+              consumo: consumoKwh,
+              consumo_originale: consumoOriginale,
+              tipo_origine: tipoGas,
+              importo,
+              allegati: []
+            });
+          }
+        } else {
+          // Energia o Acqua
+          const consumoVal = parseFloat(document.getElementById(`consumo-${tipo}`).value || 0);
+
+          if (isNaN(consumoVal) || consumoVal <= 0) {
+            hideLoading();
+            alert('❌ Inserisci un valore di consumo valido');
+            return;
+          }
+
+          if (consumoVal > 999999) {
+            hideLoading();
+            alert('❌ Il consumo deve essere minore di 999,999');
+            return;
+          }
+
+          if (supabase) {
+            await retryOperation(() =>
+              salvaConsumoSupabase(tipo, contatoreId, mese, consumoVal, importo)
+            );
+          } else {
+            consumi[tipo].push({
+              id: Date.now() + Math.random(),
+              tipo,
+              contatore_id: contatoreId,
+              mese,
+              consumo: consumoVal,
+              importo,
+              allegati: []
+            });
+          }
+        }
+
+        // Reset form
+        document.getElementById(`contatore-select-${tipo}`).value = '';
+        document.getElementById(`mese-${tipo}`).value = '';
+        document.getElementById(`consumo-${tipo}`).value = '';
+        document.getElementById(`importo-${tipo}`).value = '';
+
+        caricaTabelleTutti();
+        aggiornaGrafico();
+        dashboard_updateAll();
+        budget_updateAll();
+
+        hideLoading();
+      } catch (error) {
+        hideLoading();
+        console.error('❌ Errore salvataggio consumo:', error);
+        alert('❌ Errore nel salvataggio.\nRiprova o verifica la connessione.\n\nDettagli: ' + error.message);
+      }
     }
 
     async function eliminaConsumo(tipo, id) {
-      if (!confirm('Eliminare il consumo?')) return;
+      if (!confirm('❓ Eliminare il consumo?')) return;
+      if (isLoading) return; // Previeni doppi click
 
-      if (supabase) {
-        await eliminaConsumoSupabase(id);
-      } else {
-        consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
+      try {
+        showLoading('Eliminazione in corso...');
+
+        if (supabase) {
+          await retryOperation(() => eliminaConsumoSupabase(id));
+        } else {
+          consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
+        }
+
+        caricaTabelleTutti();
+        aggiornaGrafico();
+        dashboard_updateAll();
+        budget_updateAll();
+
+        hideLoading();
+      } catch (error) {
+        hideLoading();
+        console.error('❌ Errore eliminazione consumo:', error);
+        alert('❌ Errore nell\'eliminazione.\nRiprova o verifica la connessione.\n\nDettagli: ' + error.message);
       }
-
-      caricaTabelleTutti();
-      aggiornaGrafico();
     }
 
     function caricaTabelleTutti() {
