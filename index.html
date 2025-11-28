@@ -512,6 +512,12 @@
                   <option value="2027">2027</option>
                 </select>
               </div>
+              <label class="small-muted" style="margin-right: 8px; margin-left: 8px;">Contatore:</label>
+              <div class="select is-small">
+                <select id="budget-counter-select" onchange="budget_updateAll()">
+                  <option value="">Tutti i contatori</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1390,56 +1396,99 @@ ON CONFLICT (codice) DO NOTHING;</pre>
 
       const ctx = canvas.getContext('2d');
       const selectedTypes = dashboard_getSelectedTypes();
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const previousYear = currentYear - 1;
 
       // Genera etichette ultimi 12 mesi
       const labels = [];
-      const now = new Date();
       for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         labels.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
       }
 
-      // Calcola dati per mese
-      const monthlyData = {};
-      labels.forEach(label => { monthlyData[label] = 0; });
+      // Calcola dati per anno corrente
+      const currentYearData = {};
+      labels.forEach(label => { currentYearData[label] = 0; });
 
       Object.keys(selectedTypes).forEach(tipo => {
         if (!selectedTypes[tipo]) return;
 
         (consumi[tipo] || []).forEach(item => {
-          if (monthlyData.hasOwnProperty(item.mese)) {
-            monthlyData[item.mese] += item.consumo || 0;
+          if (currentYearData.hasOwnProperty(item.mese)) {
+            currentYearData[item.mese] += item.consumo || 0;
           }
         });
       });
 
-      const data = labels.map(label => monthlyData[label]);
+      // Calcola dati per anno precedente (stessi mesi dell'anno scorso)
+      const previousYearData = {};
+      labels.forEach(label => {
+        const monthNum = label.split('-')[1];
+        const prevLabel = `${previousYear}-${monthNum}`;
+        previousYearData[label] = 0;
+
+        Object.keys(selectedTypes).forEach(tipo => {
+          if (!selectedTypes[tipo]) return;
+
+          (consumi[tipo] || []).forEach(item => {
+            if (item.mese === prevLabel) {
+              previousYearData[label] += item.consumo || 0;
+            }
+          });
+        });
+      });
+
+      const currentData = labels.map(label => currentYearData[label]);
+      const previousData = labels.map(label => previousYearData[label]);
 
       // Distruggi grafico esistente
       if (dashboardMiniChart) {
         dashboardMiniChart.destroy();
       }
 
-      // Crea nuovo grafico
+      // Crea nuovo grafico con confronto anno su anno
       dashboardMiniChart = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: labels.map(l => formatMese(l)),
-          datasets: [{
-            label: 'Consumo Totale',
-            data: data,
-            backgroundColor: 'rgba(102, 126, 234, 0.8)',
-            borderColor: 'rgba(102, 126, 234, 1)',
-            borderWidth: 2,
-            borderRadius: 8,
-            hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
-          }]
+          datasets: [
+            {
+              label: `Anno ${currentYear}`,
+              data: currentData,
+              backgroundColor: 'rgba(102, 126, 234, 0.8)',
+              borderColor: 'rgba(102, 126, 234, 1)',
+              borderWidth: 2,
+              borderRadius: 8,
+              hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
+            },
+            {
+              label: `Anno ${previousYear}`,
+              data: previousData,
+              backgroundColor: 'rgba(156, 163, 175, 0.5)',
+              borderColor: 'rgba(156, 163, 175, 0.8)',
+              borderWidth: 1,
+              borderRadius: 8,
+              hoverBackgroundColor: 'rgba(156, 163, 175, 0.7)'
+            }
+          ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
           plugins: {
-            legend: { display: false },
+            legend: {
+              display: true,
+              position: 'top',
+              labels: {
+                usePointStyle: true,
+                padding: 15,
+                font: {
+                  size: 12,
+                  weight: '600'
+                }
+              }
+            },
             tooltip: {
               backgroundColor: 'rgba(0, 0, 0, 0.8)',
               padding: 12,
@@ -1448,7 +1497,9 @@ ON CONFLICT (codice) DO NOTHING;</pre>
               bodyFont: { size: 13 },
               callbacks: {
                 label: function (context) {
-                  return `Consumo: ${context.parsed.y.toFixed(0)} kWh/m³`;
+                  const year = context.dataset.label;
+                  const value = context.parsed.y.toFixed(0);
+                  return `${year}: ${value} kWh/m³`;
                 }
               }
             }
@@ -1504,14 +1555,23 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       return parseInt(select?.value || new Date().getFullYear());
     }
 
-    // Utility: Filter consumi by year
-    function budget_getYearData(year) {
+    // Utility: Get selected counter (null = all counters)
+    function budget_getSelectedCounter() {
+      const select = document.getElementById('budget-counter-select');
+      const value = select?.value;
+      return value && value !== '' ? parseInt(value) : null;
+    }
+
+    // Utility: Filter consumi by year and optionally by counter
+    function budget_getYearData(year, contatoreId = null) {
       const filtered = { energia: [], gas: [], acqua: [] };
       Object.keys(consumi).forEach(tipo => {
         filtered[tipo] = (consumi[tipo] || []).filter(item => {
           if (!item.mese) return false;
           const itemYear = parseInt(item.mese.split('-')[0]);
-          return itemYear === year;
+          const yearMatch = itemYear === year;
+          const counterMatch = contatoreId === null || item.contatoreId === contatoreId;
+          return yearMatch && counterMatch;
         });
       });
       return filtered;
@@ -1541,9 +1601,10 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
       const previousYear = currentYear - 1;
+      const selectedCounter = budget_getSelectedCounter();
 
-      const currentData = budget_getYearData(currentYear);
-      const previousData = budget_getYearData(previousYear);
+      const currentData = budget_getYearData(currentYear, selectedCounter);
+      const previousData = budget_getYearData(previousYear, selectedCounter);
 
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
       const previousMonthly = budget_getMonthlyAggregates(previousData, selectedTypes);
@@ -1571,9 +1632,9 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         ? ((currentTotal.spesa - previousTotal.spesa) / previousTotal.spesa * 100)
         : 0;
 
-      // Build monthly comparison array
-      const allMonths = new Set([...Object.keys(currentMonthly), ...Object.keys(previousMonthly)]);
-      const monthlyComparison = Array.from(allMonths).sort().map(month => {
+      // Build monthly comparison array - only include current year months
+      const currentYearMonths = Object.keys(currentMonthly);
+      const monthlyComparison = currentYearMonths.sort().map(month => {
         const monthNum = month.split('-')[1];
         const current = currentMonthly[month] || { consumo: 0, spesa: 0 };
         const previous = previousMonthly[`${previousYear}-${monthNum}`] || { consumo: 0, spesa: 0 };
@@ -1610,7 +1671,8 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     function budget_calculateProjection() {
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
-      const currentData = budget_getYearData(currentYear);
+      const selectedCounter = budget_getSelectedCounter();
+      const currentData = budget_getYearData(currentYear, selectedCounter);
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
 
       const now = new Date();
@@ -2000,7 +2062,8 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       const ctx = canvas.getContext('2d');
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
-      const currentData = budget_getYearData(currentYear);
+      const selectedCounter = budget_getSelectedCounter();
+      const currentData = budget_getYearData(currentYear, selectedCounter);
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
 
       const now = new Date();
@@ -2186,8 +2249,36 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       });
     }
 
+    // Update counter filter dropdown based on selected utility types
+    function budget_updateCounterFilter() {
+      const selectedTypes = budget_getSelectedTypes();
+      const select = document.getElementById('budget-counter-select');
+      if (!select) return;
+
+      const currentValue = select.value;
+      select.innerHTML = '<option value="">Tutti i contatori</option>';
+
+      // Get active counters matching selected utility types
+      const activeCounters = contatori.filter(c => {
+        return c.stato === 'attivo' && selectedTypes[c.fornitura];
+      });
+
+      activeCounters.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.nome} (${c.codice})`;
+        select.appendChild(opt);
+      });
+
+      // Restore previous selection if still valid
+      if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
+        select.value = currentValue;
+      }
+    }
+
     // Master update function
     function budget_updateAll() {
+      budget_updateCounterFilter();
       budget_updateKPIs();
       budget_renderTable();
       budget_renderComparisonChart();
@@ -2196,118 +2287,174 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     }
 
     /* ===========================
-       SUPABASE INIT & SYNC
+       FUNZIONE AGGIUNGI CONSUMO
        =========================== */
 
-    // Global state for realtime channels cleanup
-    let consumiChannel = null;
-    let contatoriChannel = null;
-    let isLoading = false;
+    async function aggiungiConsumo(tipo) {
+      // Validazione input base
+      const contatoreSelect = document.getElementById(`contatore-select-${tipo}`);
+      const meseInput = document.getElementById(`mese-${tipo}`);
+      const consumoInput = document.getElementById(`consumo-${tipo}`);
+      const importoInput = document.getElementById(`importo-${tipo}`);
 
-    /* ===========================
-       UTILITY FUNCTIONS
-       =========================== */
+      const contatoreId = parseInt(contatoreSelect?.value);
+      const mese = meseInput?.value;
+      const consumoVal = parseFloat(consumoInput?.value);
+      const importoVal = parseFloat(importoInput?.value) || 0;
 
-    // Retry logic with exponential backoff
-    async function retryOperation(fn, maxRetries = 3, initialDelay = 1000) {
-      let delay = initialDelay;
+      // Validazione campi obbligatori
+      if (!contatoreId || !mese || isNaN(consumoVal) || consumoVal <= 0) {
+        alert('⚠️ Compila tutti i campi obbligatori: Contatore, Mese e Consumo.');
+        return;
+      }
 
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          return await fn();
-        } catch (error) {
-          if (i === maxRetries - 1) throw error;
+      // Trova contatore
+      const contatore = contatori.find(c => c.id === contatoreId);
+      if (!contatore) {
+        alert('❌ Contatore non trovato.');
+        return;
+      }
 
-          console.log(`⚠️ Tentativo ${i + 1}/${maxRetries} fallito, riprovo tra ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // Exponential backoff
+      // CONTROLLO DUPLICATI (Warning non bloccante)
+      const esistente = consumi[tipo]?.find(c =>
+        c.mese === mese && (c.contatore_id === contatoreId || c.contatoreId === contatoreId)
+      );
+
+      if (esistente) {
+        const contatoreName = `${contatore.nome} (${contatore.codice})`;
+        const meseFormatted = formatMese(mese);
+        const conferma = confirm(
+          `⚠️ ATTENZIONE: Esiste già un consumo per ${contatoreName} nel mese ${meseFormatted}.\n\n` +
+          `Consumo esistente: ${esistente.consumo.toFixed(2)} kWh/m³\n` +
+          `Nuovo consumo: ${consumoVal.toFixed(2)} kWh/m³\n\n` +
+          `Vuoi procedere comunque con l'inserimento?`
+        );
+
+        if (!conferma) {
+          return; // Utente ha annullato
+        }
+      }
+
+      // Gestione conversione Gas
+      let consumoFinale = consumoVal;
+      let consumoOriginale = null;
+      let tipoOrigine = null;
+
+      if (tipo === 'gas') {
+        const tipoGasSelect = document.getElementById('tipo-gas');
+        const tipoGas = tipoGasSelect?.value || 'kWh';
+
+        consumoOriginale = consumoVal;
+        tipoOrigine = tipoGas;
+
+        // Conversioni standard
+        if (tipoGas === 'm3') {
+          // 1 m³ di gas metano ≈ 10.69 kWh (valore medio)
+          consumoFinale = consumoVal * 10.69;
+        } else if (tipoGas === 'litri') {
+          // 1 litro GPL ≈ 6.57 kWh
+          consumoFinale = consumoVal * 6.57;
+        }
+        // Se è già kWh, non serve conversione
+      }
+
+      // Crea oggetto consumo
+      const nuovoConsumo = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        tipo,
+        contatore_id: contatoreId,
+        contatoreId: contatoreId, // Compatibilità
+        mese,
+        consumo: consumoFinale,
+        importo: importoVal
+      };
+
+      // Aggiungi dati specifici per gas
+      if (tipo === 'gas') {
+        nuovoConsumo.consumo_originale = consumoOriginale;
+        nuovoConsumo.tipo_origine = tipoOrigine;
+      }
+
+      try {
+        // Salva su Supabase se connesso
+        if (supabase) {
+          updateSyncStatus('syncing', 'Salvataggio in corso...');
+
+          const dataToInsert = {
+            tipo,
+            contatore_id: contatoreId,
+            mese,
+            consumo: consumoFinale,
+            importo: importoVal
+          };
+
+          if (tipo === 'gas') {
+            dataToInsert.consumo_originale = consumoOriginale;
+            dataToInsert.tipo_origine = tipoOrigine;
+          }
+
+          const { data, error } = await supabase
+            .from('consumi')
+            .insert([dataToInsert])
+            .select();
+
+          if (error) throw error;
+
+          // Usa l'ID generato da Supabase
+          if (data && data[0]) {
+            nuovoConsumo.id = data[0].id;
+          }
+
+          updateSyncStatus('synced', 'Salvato su cloud');
+        } else {
+          // Salva su localStorage
+          if (!consumi[tipo]) consumi[tipo] = [];
+          consumiLS[tipo].push(nuovoConsumo);
+          localStorage.setItem('cm_consumi_v1', JSON.stringify(consumiLS));
+        }
+
+        // Aggiungi alla lista locale
+        if (!consumi[tipo]) consumi[tipo] = [];
+        consumi[tipo].push(nuovoConsumo);
+
+        // Pulisci form
+        consumoInput.value = '';
+        importoInput.value = '';
+        if (meseInput._flatpickr) {
+          meseInput._flatpickr.clear();
+        } else {
+          meseInput.value = '';
+        }
+
+        // Aggiorna tabella
+        caricaTabella(tipo);
+
+        // Aggiorna Dashboard e Budget Analysis
+        if (typeof dashboard_updateAll === 'function') {
+          dashboard_updateAll();
+        }
+        if (typeof budget_updateAll === 'function') {
+          budget_updateAll();
+        }
+
+        // Feedback successo
+        const contatoreName = `${contatore.nome} (${contatore.codice})`;
+        const meseFormatted = formatMese(mese);
+        alert(`✅ Consumo aggiunto con successo!\n\n${contatoreName}\n${meseFormatted}\nConsumo: ${consumoFinale.toFixed(2)} kWh/m³\nImporto: €${importoVal.toFixed(2)}`);
+
+      } catch (error) {
+        console.error('Errore salvataggio consumo:', error);
+        alert(`❌ Errore durante il salvataggio: ${error.message || 'Errore sconosciuto'}`);
+
+        if (supabase) {
+          updateSyncStatus('error', 'Errore salvataggio');
         }
       }
     }
 
-    // Loading overlay system
-    function showLoading(message = 'Caricamento...') {
-      if (isLoading) return; // Previeni overlay multipli
-      isLoading = true;
-
-      if (document.getElementById('loading-overlay')) return; // Già presente
-
-      const overlay = document.createElement('div');
-      overlay.id = 'loading-overlay';
-      overlay.innerHTML = `
-        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-                    background: rgba(0,0,0,0.6); z-index: 99999; 
-                    display: flex; align-items: center; justify-content: center;
-                    backdrop-filter: blur(2px);">
-          <div style="background: white; padding: 32px 48px; border-radius: 16px; 
-                      text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-                      min-width: 250px;">
-            <div style="width: 48px; height: 48px; border: 4px solid #e5e7eb; 
-                        border-top-color: #667eea; border-radius: 50%; 
-                        margin: 0 auto 16px; animation: spin 1s linear infinite;"></div>
-            <p style="margin: 0; font-weight: 600; color: #1f2937; font-size: 1.1rem;">${message}</p>
-          </div>
-        </div>
-      `;
-
-      // Add CSS animation if not exists
-      if (!document.getElementById('spinner-style')) {
-        const style = document.createElement('style');
-        style.id = 'spinner-style';
-        style.textContent = `
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-
-      document.body.appendChild(overlay);
-    }
-
-    function hideLoading() {
-      isLoading = false;
-      const overlay = document.getElementById('loading-overlay');
-      if (overlay) {
-        overlay.style.animation = 'fadeOut 0.2s ease';
-        setTimeout(() => overlay.remove(), 200);
-      }
-    }
-
-    // Debounce function for performance
-    function debounce(func, wait) {
-      let timeout;
-      return function executedFunction(...args) {
-        const later = () => {
-          clearTimeout(timeout);
-          func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-      };
-    }
-
-    // Debounced versions of expensive functions
-    const debouncedAggiornaGrafico = debounce(aggiornaGrafico, 300);
-    const debouncedBudgetUpdate = debounce(budget_updateAll, 300);
-    const debouncedDashboardUpdate = debounce(dashboard_updateAll, 300);
-
-    // Cleanup realtime channels
-    function cleanupRealtimeChannels() {
-      if (consumiChannel) {
-        supabase.removeChannel(consumiChannel);
-        consumiChannel = null;
-      }
-      if (contatoriChannel) {
-        supabase.removeChannel(contatoriChannel);
-        contatoriChannel = null;
-      }
-    }
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-      cleanupRealtimeChannels();
-    });
+    /* ===========================
+       SUPABASE INIT & SYNC
+       =========================== */
 
     async function initSupabase() {
       const url = localStorage.getItem('cm_supabase_url');
@@ -2359,55 +2506,47 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       if (!supabase) return;
 
       try {
-        showLoading('Sincronizzazione dati in corso...');
         updateSyncStatus('syncing', 'Sincronizzazione...');
 
-        // Carica tutti i dati in parallelo con retry logic
-        const [contatoriResult, consumiResult, fornitureResult, configResult] = await Promise.all([
-          retryOperation(() => supabase.from('contatori').select('*')),
-          retryOperation(() => supabase.from('consumi').select('*')),
-          retryOperation(() => supabase.from('forniture').select('*')),
-          retryOperation(() => supabase.from('configurazioni').select('*'))
-        ]);
+        // Carica contatori
+        const { data: contatoriData } = await supabase.from('contatori').select('*');
+        contatori = contatoriData || [];
 
-        // Check for errors
-        if (contatoriResult.error) throw contatoriResult.error;
-        if (consumiResult.error) throw consumiResult.error;
-        if (fornitureResult.error) throw fornitureResult.error;
-        if (configResult.error) throw configResult.error;
+        // Carica consumi con allegati
+        const { data: consumiData } = await supabase.from('consumi').select('*');
 
-        // Assegna contatori
-        contatori = contatoriResult.data || [];
-
-        // Processa consumi con allegati
         consumi = { energia: [], gas: [], acqua: [] };
-        if (consumiResult.data) {
-          for (const consumo of consumiResult.data) {
-            const { data: allegatiData } = await retryOperation(() =>
-              supabase
-                .from('allegati')
-                .select('*')
-                .eq('consumo_id', consumo.id)
-            );
+        if (consumiData) {
+          for (const consumo of consumiData) {
+            const { data: allegatiData } = await supabase
+              .from('allegati')
+              .select('*')
+              .eq('consumo_id', consumo.id);
 
-            consumi[consumo.tipo].push({
+            // Normalize field names: contatore_id -> contatoreId
+            const normalizedConsumo = {
               ...consumo,
+              contatoreId: consumo.contatore_id, // Normalize to camelCase
               allegati: allegatiData || []
-            });
+            };
+
+            consumi[consumo.tipo].push(normalizedConsumo);
           }
         }
 
-        // Assegna forniture
+        // Carica forniture
+        const { data: fornitureData } = await supabase.from('forniture').select('*');
         forniture = {};
-        if (fornitureResult.data) {
-          fornitureResult.data.forEach(f => {
+        if (fornitureData) {
+          fornitureData.forEach(f => {
             forniture[f.codice] = { nome: f.nome, attiva: f.attiva };
           });
         }
 
         // Carica configurazioni
-        if (configResult.data) {
-          const pathConfig = configResult.data.find(c => c.chiave === 'sharepoint_path');
+        const { data: configData } = await supabase.from('configurazioni').select('*');
+        if (configData) {
+          const pathConfig = configData.find(c => c.chiave === 'sharepoint_path');
           if (pathConfig) {
             localStorage.setItem('cm_sharepoint_path_v1', pathConfig.valore);
           }
@@ -2421,37 +2560,29 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         budget_updateAll();
 
         updateSyncStatus('synced', 'Sincronizzato');
-        hideLoading();
       } catch (err) {
         console.error('Errore caricamento dati:', err);
         updateSyncStatus('error', 'Errore sincronizzazione');
-        hideLoading();
-
-        // Mantieni UI con dati precedenti invece di corrompere
-        alert('⚠️ Errore nel caricamento dati da Supabase.\nI dati precedenti sono stati mantenuti.\n\nDettagli: ' + err.message);
       }
     }
 
     function setupRealtimeSync() {
       if (!supabase) return;
 
-      // Cleanup existing channels before creating new ones
-      cleanupRealtimeChannels();
-
       // Ascolta cambiamenti su consumi
-      consumiChannel = supabase
+      supabase
         .channel('consumi-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'consumi' }, (payload) => {
-          console.log('📊 Consumo cambiato:', payload);
+          console.log('Consumo cambiato:', payload);
           caricaDatiDaSupabase();
         })
         .subscribe();
 
       // Ascolta cambiamenti su contatori
-      contatoriChannel = supabase
+      supabase
         .channel('contatori-changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'contatori' }, (payload) => {
-          console.log('🔌 Contatore cambiato:', payload);
+          console.log('Contatore cambiato:', payload);
           caricaDatiDaSupabase();
         })
         .subscribe();
@@ -3082,149 +3213,113 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     }
 
     async function aggiungiConsumo(tipo) {
-      if (isLoading) return; // Previeni doppi click
-
       const contatoreId = parseInt(document.getElementById(`contatore-select-${tipo}`).value || 0);
       const mese = document.getElementById(`mese-${tipo}`).value;
       const importo = parseFloat(document.getElementById(`importo-${tipo}`).value || 0);
 
       if (!contatoreId) {
-        alert('❌ Seleziona un contatore');
+        alert('Seleziona un contatore');
         return;
       }
       if (!mese) {
-        alert('❌ Seleziona mese e anno');
+        alert('Seleziona mese e anno');
         return;
       }
 
-      // Validazione importo
-      if (importo < 0 || importo > 999999) {
-        alert('❌ L\'importo deve essere tra 0 e €999,999');
-        return;
+      // Check for duplicates (same counter + same month)
+      const existingRecords = consumi[tipo] || [];
+      const hasDuplicate = existingRecords.some(item =>
+        item.contatoreId === contatoreId && item.mese === mese
+      );
+
+      if (hasDuplicate) {
+        const proceed = confirm(
+          '⚠️ Attenzione: Esiste già un consumo per questo contatore nel mese selezionato.\n\n' +
+          'Vuoi procedere ugualmente con l\'inserimento?\n\n' +
+          '(Cliccando OK, verrà creato un secondo record per lo stesso mese/contatore)'
+        );
+        if (!proceed) {
+          return; // User chose not to proceed
+        }
       }
 
-      try {
-        showLoading('Salvataggio in corso...');
-
-        if (tipo === 'gas') {
-          const tipoGas = document.getElementById('tipo-gas').value;
-          const val = parseFloat(document.getElementById('consumo-gas').value || 0);
-
-          if (isNaN(val) || val <= 0) {
-            hideLoading();
-            alert('❌ Inserisci un valore di consumo valido');
-            return;
-          }
-
-          if (val > 999999) {
-            hideLoading();
-            alert('❌ Il consumo deve essere minore di 999,999');
-            return;
-          }
-
-          let consumoKwh = val;
-          let consumoOriginale = null;
-          if (tipoGas === 'm3') {
-            consumoOriginale = val;
-            consumoKwh = val * 10.69;
-          } else if (tipoGas === 'litri') {
-            consumoOriginale = val;
-            consumoKwh = val * 6.6;
-          }
-
-          if (supabase) {
-            await retryOperation(() =>
-              salvaConsumoSupabase(tipo, contatoreId, mese, consumoKwh, importo, consumoOriginale, tipoGas)
-            );
-          } else {
-            consumi.gas.push({
-              id: Date.now() + Math.random(),
-              tipo: 'gas',
-              contatore_id: contatoreId,
-              mese,
-              consumo: consumoKwh,
-              consumo_originale: consumoOriginale,
-              tipo_origine: tipoGas,
-              importo,
-              allegati: []
-            });
-          }
-        } else {
-          // Energia o Acqua
-          const consumoVal = parseFloat(document.getElementById(`consumo-${tipo}`).value || 0);
-
-          if (isNaN(consumoVal) || consumoVal <= 0) {
-            hideLoading();
-            alert('❌ Inserisci un valore di consumo valido');
-            return;
-          }
-
-          if (consumoVal > 999999) {
-            hideLoading();
-            alert('❌ Il consumo deve essere minore di 999,999');
-            return;
-          }
-
-          if (supabase) {
-            await retryOperation(() =>
-              salvaConsumoSupabase(tipo, contatoreId, mese, consumoVal, importo)
-            );
-          } else {
-            consumi[tipo].push({
-              id: Date.now() + Math.random(),
-              tipo,
-              contatore_id: contatoreId,
-              mese,
-              consumo: consumoVal,
-              importo,
-              allegati: []
-            });
-          }
+      if (tipo === 'gas') {
+        const tipoGas = document.getElementById('tipo-gas').value;
+        const val = parseFloat(document.getElementById('consumo-gas').value || 0);
+        if (isNaN(val) || val <= 0) {
+          alert('Inserisci consumo');
+          return;
         }
 
-        // Reset form
-        document.getElementById(`contatore-select-${tipo}`).value = '';
-        document.getElementById(`mese-${tipo}`).value = '';
-        document.getElementById(`consumo-${tipo}`).value = '';
-        document.getElementById(`importo-${tipo}`).value = '';
+        let consumoKwh = val;
+        let consumoOriginale = null;
+        if (tipoGas === 'm3') {
+          consumoOriginale = val;
+          consumoKwh = val * 10.69;
+        } else if (tipoGas === 'litri') {
+          consumoOriginale = val;
+          consumoKwh = val * 6.6;
+        }
 
-        caricaTabelleTutti();
-        aggiornaGrafico();
-        dashboard_updateAll();
-        budget_updateAll();
+        if (supabase) {
+          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoKwh, importo, consumoOriginale, tipoGas);
+        } else {
+          consumi.gas.push({
+            id: Date.now() + Math.random(),
+            contatoreId,
+            mese,
+            consumo: consumoKwh,
+            consumoOriginale,
+            tipoOrigine: tipoGas,
+            importo,
+            allegati: []
+          });
+        }
+      } else {
+        const consumoVal = parseFloat(document.getElementById(`consumo-${tipo}`).value || 0);
+        if (isNaN(consumoVal) || consumoVal <= 0) {
+          alert('Inserisci consumo');
+          return;
+        }
 
-        hideLoading();
-      } catch (error) {
-        hideLoading();
-        console.error('❌ Errore salvataggio consumo:', error);
-        alert('❌ Errore nel salvataggio.\nRiprova o verifica la connessione.\n\nDettagli: ' + error.message);
+        if (supabase) {
+          await salvaConsumoSupabase(tipo, contatoreId, mese, consumoVal, importo);
+        } else {
+          consumi[tipo].push({
+            id: Date.now() + Math.random(),
+            contatoreId,
+            mese,
+            consumo: consumoVal,
+            importo,
+            allegati: []
+          });
+        }
       }
+
+      document.getElementById(`contatore-select-${tipo}`).value = '';
+      document.getElementById(`mese-${tipo}`).value = '';
+      document.getElementById(`consumo-${tipo}`).value = '';
+      document.getElementById(`importo-${tipo}`).value = '';
+
+      caricaTabelleTutti();
+      aggiornaGrafico();
+      dashboard_updateAll();
+      budget_updateAll();
     }
 
     async function eliminaConsumo(tipo, id) {
-      if (!confirm('❓ Eliminare il consumo?')) return;
-      if (isLoading) return; // Previeni doppi click
+      if (!confirm('Eliminare il consumo?')) return;
 
-      try {
-        showLoading('Eliminazione in corso...');
-
-        if (supabase) {
-          await retryOperation(() => eliminaConsumoSupabase(id));
-        } else {
-          consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
-        }
-
-        caricaTabelleTutti();
-        aggiornaGrafico();
-        dashboard_updateAll();
-        budget_updateAll();
-
-        hideLoading();
-      } catch (error) {
-        hideLoading();
-        console.error('❌ Errore eliminazione consumo:', error);
-        alert('❌ Errore nell\'eliminazione.\nRiprova o verifica la connessione.\n\nDettagli: ' + error.message);
+      if (supabase) {
+        await eliminaConsumoSupabase(id);
+      } else {
+        consumi[tipo] = consumi[tipo].filter(c => c.id !== id);
       }
+
+      caricaTabelleTutti();
+      aggiornaGrafico();
+      dashboard_updateAll();
+      budget_updateAll();
     }
 
     function caricaTabelleTutti() {
