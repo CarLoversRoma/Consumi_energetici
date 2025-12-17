@@ -512,12 +512,6 @@
                   <option value="2027">2027</option>
                 </select>
               </div>
-              <label class="small-muted" style="margin-right: 8px; margin-left: 8px;">Contatore:</label>
-              <div class="select is-small">
-                <select id="budget-counter-select" onchange="budget_updateAll()">
-                  <option value="">Tutti i contatori</option>
-                </select>
-              </div>
             </div>
           </div>
 
@@ -1396,99 +1390,56 @@ ON CONFLICT (codice) DO NOTHING;</pre>
 
       const ctx = canvas.getContext('2d');
       const selectedTypes = dashboard_getSelectedTypes();
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const previousYear = currentYear - 1;
 
       // Genera etichette ultimi 12 mesi
       const labels = [];
+      const now = new Date();
       for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         labels.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
       }
 
-      // Calcola dati per anno corrente
-      const currentYearData = {};
-      labels.forEach(label => { currentYearData[label] = 0; });
+      // Calcola dati per mese
+      const monthlyData = {};
+      labels.forEach(label => { monthlyData[label] = 0; });
 
       Object.keys(selectedTypes).forEach(tipo => {
         if (!selectedTypes[tipo]) return;
 
         (consumi[tipo] || []).forEach(item => {
-          if (currentYearData.hasOwnProperty(item.mese)) {
-            currentYearData[item.mese] += item.consumo || 0;
+          if (monthlyData.hasOwnProperty(item.mese)) {
+            monthlyData[item.mese] += item.consumo || 0;
           }
         });
       });
 
-      // Calcola dati per anno precedente (stessi mesi dell'anno scorso)
-      const previousYearData = {};
-      labels.forEach(label => {
-        const monthNum = label.split('-')[1];
-        const prevLabel = `${previousYear}-${monthNum}`;
-        previousYearData[label] = 0;
-
-        Object.keys(selectedTypes).forEach(tipo => {
-          if (!selectedTypes[tipo]) return;
-
-          (consumi[tipo] || []).forEach(item => {
-            if (item.mese === prevLabel) {
-              previousYearData[label] += item.consumo || 0;
-            }
-          });
-        });
-      });
-
-      const currentData = labels.map(label => currentYearData[label]);
-      const previousData = labels.map(label => previousYearData[label]);
+      const data = labels.map(label => monthlyData[label]);
 
       // Distruggi grafico esistente
       if (dashboardMiniChart) {
         dashboardMiniChart.destroy();
       }
 
-      // Crea nuovo grafico con confronto anno su anno
+      // Crea nuovo grafico
       dashboardMiniChart = new Chart(ctx, {
         type: 'bar',
         data: {
           labels: labels.map(l => formatMese(l)),
-          datasets: [
-            {
-              label: `Anno ${currentYear}`,
-              data: currentData,
-              backgroundColor: 'rgba(102, 126, 234, 0.8)',
-              borderColor: 'rgba(102, 126, 234, 1)',
-              borderWidth: 2,
-              borderRadius: 8,
-              hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
-            },
-            {
-              label: `Anno ${previousYear}`,
-              data: previousData,
-              backgroundColor: 'rgba(156, 163, 175, 0.5)',
-              borderColor: 'rgba(156, 163, 175, 0.8)',
-              borderWidth: 1,
-              borderRadius: 8,
-              hoverBackgroundColor: 'rgba(156, 163, 175, 0.7)'
-            }
-          ]
+          datasets: [{
+            label: 'Consumo Totale',
+            data: data,
+            backgroundColor: 'rgba(102, 126, 234, 0.8)',
+            borderColor: 'rgba(102, 126, 234, 1)',
+            borderWidth: 2,
+            borderRadius: 8,
+            hoverBackgroundColor: 'rgba(102, 126, 234, 1)'
+          }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: true,
           plugins: {
-            legend: {
-              display: true,
-              position: 'top',
-              labels: {
-                usePointStyle: true,
-                padding: 15,
-                font: {
-                  size: 12,
-                  weight: '600'
-                }
-              }
-            },
+            legend: { display: false },
             tooltip: {
               backgroundColor: 'rgba(0, 0, 0, 0.8)',
               padding: 12,
@@ -1497,9 +1448,7 @@ ON CONFLICT (codice) DO NOTHING;</pre>
               bodyFont: { size: 13 },
               callbacks: {
                 label: function (context) {
-                  const year = context.dataset.label;
-                  const value = context.parsed.y.toFixed(0);
-                  return `${year}: ${value} kWh/m³`;
+                  return `Consumo: ${context.parsed.y.toFixed(0)} kWh/m³`;
                 }
               }
             }
@@ -1555,23 +1504,14 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       return parseInt(select?.value || new Date().getFullYear());
     }
 
-    // Utility: Get selected counter (null = all counters)
-    function budget_getSelectedCounter() {
-      const select = document.getElementById('budget-counter-select');
-      const value = select?.value;
-      return value && value !== '' ? parseInt(value) : null;
-    }
-
-    // Utility: Filter consumi by year and optionally by counter
-    function budget_getYearData(year, contatoreId = null) {
+    // Utility: Filter consumi by year
+    function budget_getYearData(year) {
       const filtered = { energia: [], gas: [], acqua: [] };
       Object.keys(consumi).forEach(tipo => {
         filtered[tipo] = (consumi[tipo] || []).filter(item => {
           if (!item.mese) return false;
           const itemYear = parseInt(item.mese.split('-')[0]);
-          const yearMatch = itemYear === year;
-          const counterMatch = contatoreId === null || item.contatoreId === contatoreId;
-          return yearMatch && counterMatch;
+          return itemYear === year;
         });
       });
       return filtered;
@@ -1601,10 +1541,9 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
       const previousYear = currentYear - 1;
-      const selectedCounter = budget_getSelectedCounter();
 
-      const currentData = budget_getYearData(currentYear, selectedCounter);
-      const previousData = budget_getYearData(previousYear, selectedCounter);
+      const currentData = budget_getYearData(currentYear);
+      const previousData = budget_getYearData(previousYear);
 
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
       const previousMonthly = budget_getMonthlyAggregates(previousData, selectedTypes);
@@ -1632,9 +1571,9 @@ ON CONFLICT (codice) DO NOTHING;</pre>
         ? ((currentTotal.spesa - previousTotal.spesa) / previousTotal.spesa * 100)
         : 0;
 
-      // Build monthly comparison array - only include current year months
-      const currentYearMonths = Object.keys(currentMonthly);
-      const monthlyComparison = currentYearMonths.sort().map(month => {
+      // Build monthly comparison array
+      const allMonths = new Set([...Object.keys(currentMonthly), ...Object.keys(previousMonthly)]);
+      const monthlyComparison = Array.from(allMonths).sort().map(month => {
         const monthNum = month.split('-')[1];
         const current = currentMonthly[month] || { consumo: 0, spesa: 0 };
         const previous = previousMonthly[`${previousYear}-${monthNum}`] || { consumo: 0, spesa: 0 };
@@ -1671,8 +1610,7 @@ ON CONFLICT (codice) DO NOTHING;</pre>
     function budget_calculateProjection() {
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
-      const selectedCounter = budget_getSelectedCounter();
-      const currentData = budget_getYearData(currentYear, selectedCounter);
+      const currentData = budget_getYearData(currentYear);
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
 
       const now = new Date();
@@ -2062,8 +2000,7 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       const ctx = canvas.getContext('2d');
       const selectedTypes = budget_getSelectedTypes();
       const currentYear = budget_getSelectedYear();
-      const selectedCounter = budget_getSelectedCounter();
-      const currentData = budget_getYearData(currentYear, selectedCounter);
+      const currentData = budget_getYearData(currentYear);
       const currentMonthly = budget_getMonthlyAggregates(currentData, selectedTypes);
 
       const now = new Date();
@@ -2249,207 +2186,13 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       });
     }
 
-    // Update counter filter dropdown based on selected utility types
-    function budget_updateCounterFilter() {
-      const selectedTypes = budget_getSelectedTypes();
-      const select = document.getElementById('budget-counter-select');
-      if (!select) return;
-
-      const currentValue = select.value;
-      select.innerHTML = '<option value="">Tutti i contatori</option>';
-
-      // Get active counters matching selected utility types
-      const activeCounters = contatori.filter(c => {
-        return c.stato === 'attivo' && selectedTypes[c.fornitura];
-      });
-
-      activeCounters.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c.id;
-        opt.textContent = `${c.nome} (${c.codice})`;
-        select.appendChild(opt);
-      });
-
-      // Restore previous selection if still valid
-      if (currentValue && Array.from(select.options).some(opt => opt.value === currentValue)) {
-        select.value = currentValue;
-      }
-    }
-
     // Master update function
     function budget_updateAll() {
-      budget_updateCounterFilter();
       budget_updateKPIs();
       budget_renderTable();
       budget_renderComparisonChart();
       budget_renderVariationChart();
       budget_renderProjectionChart();
-    }
-
-    /* ===========================
-       FUNZIONE AGGIUNGI CONSUMO
-       =========================== */
-
-    async function aggiungiConsumo(tipo) {
-      // Validazione input base
-      const contatoreSelect = document.getElementById(`contatore-select-${tipo}`);
-      const meseInput = document.getElementById(`mese-${tipo}`);
-      const consumoInput = document.getElementById(`consumo-${tipo}`);
-      const importoInput = document.getElementById(`importo-${tipo}`);
-
-      const contatoreId = parseInt(contatoreSelect?.value);
-      const mese = meseInput?.value;
-      const consumoVal = parseFloat(consumoInput?.value);
-      const importoVal = parseFloat(importoInput?.value) || 0;
-
-      // Validazione campi obbligatori
-      if (!contatoreId || !mese || isNaN(consumoVal) || consumoVal <= 0) {
-        alert('⚠️ Compila tutti i campi obbligatori: Contatore, Mese e Consumo.');
-        return;
-      }
-
-      // Trova contatore
-      const contatore = contatori.find(c => c.id === contatoreId);
-      if (!contatore) {
-        alert('❌ Contatore non trovato.');
-        return;
-      }
-
-      // CONTROLLO DUPLICATI (Warning non bloccante)
-      const esistente = consumi[tipo]?.find(c =>
-        c.mese === mese && (c.contatore_id === contatoreId || c.contatoreId === contatoreId)
-      );
-
-      if (esistente) {
-        const contatoreName = `${contatore.nome} (${contatore.codice})`;
-        const meseFormatted = formatMese(mese);
-        const conferma = confirm(
-          `⚠️ ATTENZIONE: Esiste già un consumo per ${contatoreName} nel mese ${meseFormatted}.\n\n` +
-          `Consumo esistente: ${esistente.consumo.toFixed(2)} kWh/m³\n` +
-          `Nuovo consumo: ${consumoVal.toFixed(2)} kWh/m³\n\n` +
-          `Vuoi procedere comunque con l'inserimento?`
-        );
-
-        if (!conferma) {
-          return; // Utente ha annullato
-        }
-      }
-
-      // Gestione conversione Gas
-      let consumoFinale = consumoVal;
-      let consumoOriginale = null;
-      let tipoOrigine = null;
-
-      if (tipo === 'gas') {
-        const tipoGasSelect = document.getElementById('tipo-gas');
-        const tipoGas = tipoGasSelect?.value || 'kWh';
-
-        consumoOriginale = consumoVal;
-        tipoOrigine = tipoGas;
-
-        // Conversioni standard
-        if (tipoGas === 'm3') {
-          // 1 m³ di gas metano ≈ 10.69 kWh (valore medio)
-          consumoFinale = consumoVal * 10.69;
-        } else if (tipoGas === 'litri') {
-          // 1 litro GPL ≈ 6.57 kWh
-          consumoFinale = consumoVal * 6.57;
-        }
-        // Se è già kWh, non serve conversione
-      }
-
-      // Crea oggetto consumo
-      const nuovoConsumo = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        tipo,
-        contatore_id: contatoreId,
-        contatoreId: contatoreId, // Compatibilità
-        mese,
-        consumo: consumoFinale,
-        importo: importoVal
-      };
-
-      // Aggiungi dati specifici per gas
-      if (tipo === 'gas') {
-        nuovoConsumo.consumo_originale = consumoOriginale;
-        nuovoConsumo.tipo_origine = tipoOrigine;
-      }
-
-      try {
-        // Salva su Supabase se connesso
-        if (supabase) {
-          updateSyncStatus('syncing', 'Salvataggio in corso...');
-
-          const dataToInsert = {
-            tipo,
-            contatore_id: contatoreId,
-            mese,
-            consumo: consumoFinale,
-            importo: importoVal
-          };
-
-          if (tipo === 'gas') {
-            dataToInsert.consumo_originale = consumoOriginale;
-            dataToInsert.tipo_origine = tipoOrigine;
-          }
-
-          const { data, error } = await supabase
-            .from('consumi')
-            .insert([dataToInsert])
-            .select();
-
-          if (error) throw error;
-
-          // Usa l'ID generato da Supabase
-          if (data && data[0]) {
-            nuovoConsumo.id = data[0].id;
-          }
-
-          updateSyncStatus('synced', 'Salvato su cloud');
-        } else {
-          // Salva su localStorage
-          if (!consumi[tipo]) consumi[tipo] = [];
-          consumiLS[tipo].push(nuovoConsumo);
-          localStorage.setItem('cm_consumi_v1', JSON.stringify(consumiLS));
-        }
-
-        // Aggiungi alla lista locale
-        if (!consumi[tipo]) consumi[tipo] = [];
-        consumi[tipo].push(nuovoConsumo);
-
-        // Pulisci form
-        consumoInput.value = '';
-        importoInput.value = '';
-        if (meseInput._flatpickr) {
-          meseInput._flatpickr.clear();
-        } else {
-          meseInput.value = '';
-        }
-
-        // Aggiorna tabella
-        caricaTabella(tipo);
-
-        // Aggiorna Dashboard e Budget Analysis
-        if (typeof dashboard_updateAll === 'function') {
-          dashboard_updateAll();
-        }
-        if (typeof budget_updateAll === 'function') {
-          budget_updateAll();
-        }
-
-        // Feedback successo
-        const contatoreName = `${contatore.nome} (${contatore.codice})`;
-        const meseFormatted = formatMese(mese);
-        alert(`✅ Consumo aggiunto con successo!\n\n${contatoreName}\n${meseFormatted}\nConsumo: ${consumoFinale.toFixed(2)} kWh/m³\nImporto: €${importoVal.toFixed(2)}`);
-
-      } catch (error) {
-        console.error('Errore salvataggio consumo:', error);
-        alert(`❌ Errore durante il salvataggio: ${error.message || 'Errore sconosciuto'}`);
-
-        if (supabase) {
-          updateSyncStatus('error', 'Errore salvataggio');
-        }
-      }
     }
 
     /* ===========================
@@ -2523,14 +2266,10 @@ ON CONFLICT (codice) DO NOTHING;</pre>
               .select('*')
               .eq('consumo_id', consumo.id);
 
-            // Normalize field names: contatore_id -> contatoreId
-            const normalizedConsumo = {
+            consumi[consumo.tipo].push({
               ...consumo,
-              contatoreId: consumo.contatore_id, // Normalize to camelCase
               allegati: allegatiData || []
-            };
-
-            consumi[consumo.tipo].push(normalizedConsumo);
+            });
           }
         }
 
@@ -3224,23 +2963,6 @@ ON CONFLICT (codice) DO NOTHING;</pre>
       if (!mese) {
         alert('Seleziona mese e anno');
         return;
-      }
-
-      // Check for duplicates (same counter + same month)
-      const existingRecords = consumi[tipo] || [];
-      const hasDuplicate = existingRecords.some(item =>
-        item.contatoreId === contatoreId && item.mese === mese
-      );
-
-      if (hasDuplicate) {
-        const proceed = confirm(
-          '⚠️ Attenzione: Esiste già un consumo per questo contatore nel mese selezionato.\n\n' +
-          'Vuoi procedere ugualmente con l\'inserimento?\n\n' +
-          '(Cliccando OK, verrà creato un secondo record per lo stesso mese/contatore)'
-        );
-        if (!proceed) {
-          return; // User chose not to proceed
-        }
       }
 
       if (tipo === 'gas') {
