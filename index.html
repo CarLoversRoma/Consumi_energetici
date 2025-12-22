@@ -70,10 +70,35 @@
     .table th,
     .table td {
       vertical-align: middle;
+      white-space: nowrap;
     }
 
     .table td:last-child {
       white-space: nowrap;
+    }
+
+    /* Action buttons in table - horizontal layout */
+    .table-actions {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .table-actions .button {
+      padding: 4px 10px;
+      font-size: 0.8rem;
+      height: auto;
+      min-width: fit-content;
+    }
+
+    .table-actions .button .tag {
+      margin-left: 4px;
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      height: auto;
+      line-height: 1.2;
     }
 
     .chart-wrap {
@@ -1184,6 +1209,67 @@
     </div>
   </div>
 
+  <!-- Modal Modifica Consumo -->
+  <div id="modal-modifica" class="modal">
+    <div class="modal-background"></div>
+    <div class="modal-card">
+      <header class="modal-card-head">
+        <p class="modal-card-title">Modifica Consumo</p>
+        <button class="delete" aria-label="close" id="close-modifica-modal"></button>
+      </header>
+      <section class="modal-card-body">
+        <input type="hidden" id="modifica-tipo" />
+        <input type="hidden" id="modifica-id" />
+
+        <div class="field">
+          <label class="label">Contatore</label>
+          <div class="control">
+            <div class="select is-fullwidth"><select id="modifica-contatore"></select></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label">Mese / Anno</label>
+          <div class="control"><input id="modifica-mese" type="text" class="input" placeholder="Seleziona mese e anno">
+          </div>
+        </div>
+
+        <div id="modifica-gas-fields" style="display: none;">
+          <div class="field">
+            <label class="label">Unità originale</label>
+            <div class="control">
+              <div class="select"><select id="modifica-tipo-gas">
+                  <option value="kWh">kWh</option>
+                  <option value="m3">m³</option>
+                  <option value="litri">litri (GPL)</option>
+                </select></div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="label">Consumo originale</label>
+            <div class="control"><input id="modifica-consumo-originale" type="number" class="input" step="0.01"></div>
+          </div>
+        </div>
+
+        <div id="modifica-standard-fields">
+          <div class="field">
+            <label class="label" id="modifica-consumo-label">Consumo</label>
+            <div class="control"><input id="modifica-consumo" type="number" class="input" step="0.01"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label">Importo (€)</label>
+          <div class="control"><input id="modifica-importo" type="number" class="input" step="0.01"></div>
+        </div>
+      </section>
+      <footer class="modal-card-foot" style="justify-content: flex-end;">
+        <button class="button" id="close-modifica-modal-2">Annulla</button>
+        <button class="button is-primary" id="btn-salva-modifica">Salva modifiche</button>
+      </footer>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
 
@@ -1774,10 +1860,10 @@
         const tr = document.createElement('tr');
         const allegatiCount = r.allegati ? r.allegati.length : 0;
         const actionsHtml = `
-        <div class="buttons are-small">
+        <div class="table-actions">
+            <button class="button is-info is-light" onclick="openModificaModal('${tipo}', ${r.id})" title="Modifica">✏️</button>
             <button class="button is-light" onclick="openAllegatiModal('${tipo}', ${r.id})">
-                <span>Allega</span>
-                <span class="tag is-dark" style="margin-left: 6px;">${allegatiCount}</span>
+                Allega<span class="tag is-success">${allegatiCount}</span>
             </button>
             <button class="button is-danger is-light" onclick="eliminaConsumo('${tipo}', ${r.id})">Elimina</button>
         </div>`;
@@ -1854,6 +1940,11 @@
       document.getElementById('close-allegati-modal').addEventListener('click', closeAllegatiModal);
       document.getElementById('close-allegati-modal-2').addEventListener('click', closeAllegatiModal);
       document.getElementById('file-allegato-input').addEventListener('change', handleFileSelect);
+
+      // Edit modal event handlers
+      document.getElementById('close-modifica-modal').addEventListener('click', closeModificaModal);
+      document.getElementById('close-modifica-modal-2').addEventListener('click', closeModificaModal);
+      document.getElementById('btn-salva-modifica').addEventListener('click', salvaModificaConsumo);
 
       document.getElementById('btn-salva-sharepoint').addEventListener('click', salvaPercorsoSharepoint);
 
@@ -2000,6 +2091,158 @@
         popolaListaAllegati(tipo, id);
         caricaTabelleTutti();
       }
+    }
+
+    // =====================================================
+    // MODIFICA CONSUMO FUNCTIONS
+    // =====================================================
+
+    let modificaPickerInstance = null;
+
+    function popolaModificaContatoriSelect(tipo) {
+      const select = document.getElementById('modifica-contatore');
+      select.innerHTML = '';
+      const contatoriTipo = contatori.filter(c => c.fornitura === tipo && c.stato === 'attivo');
+      contatoriTipo.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = `${c.nome} (${c.codice})`;
+        select.appendChild(opt);
+      });
+    }
+
+    function openModificaModal(tipo, id) {
+      const record = consumi[tipo].find(c => c.id === id);
+      if (!record) {
+        alert('Consumo non trovato');
+        return;
+      }
+
+      // Set hidden fields
+      document.getElementById('modifica-tipo').value = tipo;
+      document.getElementById('modifica-id').value = id;
+
+      // Populate contatori select
+      popolaModificaContatoriSelect(tipo);
+      document.getElementById('modifica-contatore').value = record.contatoreId;
+
+      // Set month
+      document.getElementById('modifica-mese').value = record.mese || '';
+
+      // Initialize flatpickr for the mese field if not already done
+      if (modificaPickerInstance) {
+        modificaPickerInstance.destroy();
+      }
+      modificaPickerInstance = flatpickr("#modifica-mese", {
+        plugins: [new monthSelectPlugin({ shorthand: false, dateFormat: "Y-m", altFormat: "F Y", theme: "light" })],
+        allowInput: true,
+        defaultDate: record.mese || null
+      });
+
+      // Handle gas-specific fields
+      const gasFieldsDiv = document.getElementById('modifica-gas-fields');
+      const standardFieldsDiv = document.getElementById('modifica-standard-fields');
+      const consumoLabel = document.getElementById('modifica-consumo-label');
+
+      if (tipo === 'gas') {
+        gasFieldsDiv.style.display = 'block';
+        standardFieldsDiv.style.display = 'none';
+
+        // Set gas-specific values
+        document.getElementById('modifica-tipo-gas').value = record.tipoOrigine || 'kWh';
+        document.getElementById('modifica-consumo-originale').value = record.consumoOriginale ?? record.consumo;
+      } else {
+        gasFieldsDiv.style.display = 'none';
+        standardFieldsDiv.style.display = 'block';
+
+        // Set label based on tipo
+        if (tipo === 'energia') {
+          consumoLabel.textContent = 'Consumo (kWh)';
+        } else if (tipo === 'acqua') {
+          consumoLabel.textContent = 'Consumo (m³)';
+        }
+
+        document.getElementById('modifica-consumo').value = record.consumo || '';
+      }
+
+      // Set importo
+      document.getElementById('modifica-importo').value = record.importo || '';
+
+      // Show modal
+      document.getElementById('modal-modifica').classList.add('is-active');
+    }
+
+    function closeModificaModal() {
+      document.getElementById('modal-modifica').classList.remove('is-active');
+      if (modificaPickerInstance) {
+        modificaPickerInstance.destroy();
+        modificaPickerInstance = null;
+      }
+    }
+
+    function salvaModificaConsumo() {
+      const tipo = document.getElementById('modifica-tipo').value;
+      const id = parseFloat(document.getElementById('modifica-id').value);
+      const contatoreId = parseInt(document.getElementById('modifica-contatore').value);
+      const mese = document.getElementById('modifica-mese').value;
+      const importo = parseFloat(document.getElementById('modifica-importo').value) || 0;
+
+      if (!mese) {
+        alert('Seleziona un mese');
+        return;
+      }
+
+      if (!contatoreId) {
+        alert('Seleziona un contatore');
+        return;
+      }
+
+      const record = consumi[tipo].find(c => c.id === id);
+      if (!record) {
+        alert('Consumo non trovato');
+        return;
+      }
+
+      // Update common fields
+      record.contatoreId = contatoreId;
+      record.mese = mese;
+      record.importo = importo;
+
+      // Handle consumo based on tipo
+      if (tipo === 'gas') {
+        const tipoGas = document.getElementById('modifica-tipo-gas').value;
+        const consumoOriginale = parseFloat(document.getElementById('modifica-consumo-originale').value);
+
+        if (isNaN(consumoOriginale) || consumoOriginale <= 0) {
+          alert('Inserisci un consumo valido');
+          return;
+        }
+
+        // Convert to kWh
+        let consumoKwh = consumoOriginale;
+        if (tipoGas === 'm3') consumoKwh = consumoOriginale * 10.69;
+        else if (tipoGas === 'litri') consumoKwh = consumoOriginale * 6.6;
+
+        record.consumo = parseFloat(consumoKwh.toFixed(2));
+        record.consumoOriginale = consumoOriginale;
+        record.tipoOrigine = tipoGas;
+      } else {
+        const consumo = parseFloat(document.getElementById('modifica-consumo').value);
+
+        if (isNaN(consumo) || consumo <= 0) {
+          alert('Inserisci un consumo valido');
+          return;
+        }
+
+        record.consumo = consumo;
+      }
+
+      // Save and refresh UI
+      salvaConsumi();
+      caricaTabelleTutti();
+      aggiornaGrafico();
+      popolaStatContatoriCheckboxes();
+      closeModificaModal();
     }
 
     function esportaDatiXLSX() {
